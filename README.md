@@ -38,7 +38,7 @@ Mentesa/
 
 1. Clone the repo:
 ```bash
-git clone https://github.com/<your-username>/Mentesa.git
+git clone https://github.com/Mayurkoli8/Mentesa.git
 cd Mentesa
 ```
 
