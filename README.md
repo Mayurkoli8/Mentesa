@@ -2,6 +2,11 @@
 
 **Mentesa** is an innovative no-code platform that enables users to create intelligent, personalized AI agents using just natural language. Powered by open-source LLMs like Mistral and Mixtral (via Ollama), Mentesa supports RAG, file-based learning, memory, and fine-tuning — all without writing a single line of code.
 
+## 🌐 Live 
+
+🔗 [Mentesa on Streamlit](https://Mentesa.streamlit.app)
+
+
 ## ✨ Key Features
 
 - 🤖 Create bots using natural language
@@ -42,22 +47,18 @@ git clone https://github.com/Mayurkoli8/Mentesa.git
 cd Mentesa
 ```
 
-## Create virtual environment & install dependencies:
+## 📦 Installation
+
 ```bash
-python -m venv venv
-source venv/bin/activate   # or .\venv\Scripts\activate on Windows
+git clone git clone https://github.com/Mayurkoli8/Mentesa.git
+cd mentesa
 pip install -r requirements.txt
+streamlit run app.py
 ```
 ⚙️ Requirements (requirements.txt)
 streamlit
-openai
-sentence-transformers
-faiss-cpu
-langchain
-pypdf
-fastapi
-uvicorn
-python-dotenv
+
+**Download Ollama + Mistral to run the app**
 
 📄 License
 No License Yet
