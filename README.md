@@ -53,7 +53,7 @@ cd Mentesa
 git clone git clone https://github.com/Mayurkoli8/Mentesa.git
 cd mentesa
 pip install -r requirements.txt
-streamlit run app.py
+streamlit frontend/run app.py
 ```
 ⚙️ Requirements (requirements.txt)
 streamlit
