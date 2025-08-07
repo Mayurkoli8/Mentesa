@@ -4,10 +4,11 @@ import json
 import sys
 import os
 
+
 # Add root dir (mentesa/) to sys.path so utils/ can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from utils.llm import generate_bot_config_mistral, chat_with_mistral
+from utils.llm import generate_bot_config_gemini, chat_with_gemini
 from utils.bot_ops import load_bots, save_bots, delete_bot, rename_bot, update_personality
 
 from utils.chat_ops import load_chat_history, save_chat_history, clear_chat_history
@@ -25,7 +26,7 @@ def create_and_save_bot():
             return None, None
 
         with st.spinner("Generating bot…"):
-            cfg_text = generate_bot_config_mistral(prompt)
+            cfg_text = generate_bot_config_gemini(prompt)
 
         try:
             clean = cfg_text.strip().strip("` ")
@@ -81,7 +82,7 @@ def chat_interface():
     if user_input:
         st.chat_message("user").markdown(user_input)
         with st.spinner("Thinking…"):
-            reply = chat_with_mistral(user_input, bot_info["personality"])
+            reply = chat_with_gemini(user_input, bot_info["personality"])
         st.chat_message("assistant", avatar="🤖").markdown(reply)
 
         # Save and rerun
