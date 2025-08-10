@@ -11,6 +11,7 @@ import streamlit as _st  # keep original st in file as st
 if _st.sidebar.button("🔎 DEBUG: Test Gemini Key & Models"):
     import google.generativeai as genai
 
+    # Find key from env or Streamlit secrets
     key = os.getenv("GEMINI_API_KEY") or _st.secrets.get("GEMINI_API_KEY") or _st.secrets.get("GOOGLE_API_KEY")
     _st.write("Key present in env/secrets:", bool(key))
     if key:
@@ -22,30 +23,48 @@ if _st.sidebar.button("🔎 DEBUG: Test Gemini Key & Models"):
 
         try:
             genai.configure(api_key=key)
-            models = genai.list_models()
-            _st.success("✅ list_models succeeded")
-            _st.write("Available model names (first 40):")
-            _st.json([m.name for m in models][:40])
 
-            # try a tiny generate with the first model (safe short prompt)
-            model_name = models[0].name
+            # list_models() returns a generator-like object — convert to list
+            models_gen = genai.list_models()
+            models_list = list(models_gen)
+            _st.write("Got models count (truncated to 200):", len(models_list))
+            _st.json([m.name for m in models_list][:200])
+
+            # pick an explicit model from the list (change if needed)
+            model_name = "models/gemini-2.5-pro"
+            if not any(m.name == model_name for m in models_list):
+                # fallback to first available model name
+                model_name = models_list[0].name
+                _st.warning(f"Requested model not in list; using fallback: {model_name}")
+
             _st.write("Testing generate_content against model:", model_name)
             model = genai.GenerativeModel(model_name)
-            resp = model.generate_content("Say hello in one word.")
+            # safe short prompt
+            resp = model.generate_content("Say hello in one short sentence.")
             _st.write("Type of response object:", type(resp))
-            # show possible attributes safely
-            _st.write("Has .text attribute? ->", hasattr(resp, "text"))
+
+            # Safe access to resp.text
+            has_text = hasattr(resp, "text")
+            _st.write("Has .text attribute? ->", has_text)
             try:
                 _st.write("resp.text (repr):", repr(getattr(resp, "text", None)))
             except Exception as e:
                 _st.write("Could not read resp.text:", e)
-            # dump raw candidates if present
+
+            # Dump candidates if present (safe extraction)
             try:
+                cand_dump = []
+                for c in getattr(resp, "candidates", []):
+                    parts = []
+                    for p in getattr(getattr(c, "content", None), "parts", []):
+                        parts.append(getattr(p, "text", None))
+                    cand_dump.append({
+                        "finish_reason": getattr(c, "finish_reason", None),
+                        "safety": getattr(c, "safety_ratings", None),
+                        "parts": parts
+                    })
                 _st.write("Candidates (raw):")
-                _st.json([{
-                    "finish_reason": getattr(c, "finish_reason", None),
-                    "parts": [ getattr(p, "text", None) for p in getattr(getattr(c, "content", None), "parts", []) ]
-                } for c in getattr(resp, "candidates", [])])
+                _st.json(cand_dump)
             except Exception as e:
                 _st.write("Could not dump candidates:", e)
 
@@ -54,9 +73,7 @@ if _st.sidebar.button("🔎 DEBUG: Test Gemini Key & Models"):
     else:
         _st.error("No key found in env or Streamlit secrets. Please add GEMINI_API_KEY in Manage app → Settings → Secrets.")
     _st.stop()
-# --- end debug block ---
-
-
+# --- END DEBUG BLOCK ---
 # Add root dir (mentesa/) to sys.path so utils/ can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
