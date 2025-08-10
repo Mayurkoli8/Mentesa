@@ -89,43 +89,46 @@ from utils.chat_ops import load_chat_history, save_chat_history, clear_chat_hist
 
 st.set_page_config(page_title="Mentesa", page_icon="🧠")
 
+import streamlit as st
+import json
+from utils.llm import generate_bot_config_gemini  # your updated safe function
+
 def create_and_save_bot():
-    """Section 1: Describe & create a new bot via LLM."""
-    st.header("🪄 Describe & Create Your Bot")
-    prompt = st.text_input("What should your bot do?", key="bot_prompt")
+    st.subheader("Create Your Bot")
+    prompt = st.text_area("Enter your bot's configuration prompt:")
 
-    if st.button("Create & Chat", key="create_chat"):
+    if st.button("Generate Bot Config"):
         if not prompt.strip():
-            st.error("Please enter a description.")
-            return None, None
+            st.warning("Please enter a prompt before generating.")
+            return
 
-        with st.spinner("Generating bot…"):
-            cfg = generate_bot_config_gemini(prompt)  # ✅ Already a dict
+        with st.spinner("Generating bot configuration..."):
+            cfg = generate_bot_config_gemini(prompt)
 
+        # Handle errors or empty responses gracefully
+        if isinstance(cfg, dict) and "error" in cfg:
+            st.error(f"Failed to generate config: {cfg['error']}")
+            return
+
+        if not cfg:
+            st.error("Gemini returned no configuration.")
+            return
+
+        # Convert to JSON string for saving
         try:
-            if not isinstance(cfg, dict):
-                st.error("🚨 LLM did not return a valid bot configuration.")
-                st.code(str(cfg))
-                st.stop()
-
-            name = cfg.get("name", "Unnamed Bot")
-            personality = cfg.get("personality", "")
-
+            cfg_str = json.dumps(cfg, indent=2, ensure_ascii=False)
         except Exception as e:
-            st.error("🚨 Error processing bot configuration:")
-            st.code(str(cfg))
-            st.error(f"Error: {e}")
-            st.stop()
+            st.error(f"Error serializing configuration: {e}")
+            return
 
-        bots = load_bots()
-        bot_id = str(uuid.uuid4())
-        bots[bot_id] = {"name": name, "personality": personality}
-        save_bots(bots)
-
-        st.success(f"✅ Bot '{name}' created!")
-        st.rerun()
-
-    return None, None  # No new bot created this run
+        # Save to file
+        try:
+            with open("bot_config.json", "w", encoding="utf-8") as f:
+                f.write(cfg_str)
+            st.success("✅ Bot configuration saved successfully!")
+            st.json(cfg)
+        except Exception as e:
+            st.error(f"Error saving configuration: {e}")
 
 def chat_interface():
     """Section 2: Select, chat, clear history, or delete a bot."""
