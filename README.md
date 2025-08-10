@@ -16,7 +16,7 @@
 - 💾 Long-term memory + Fine-tuning (LoRA support)
 - 📦 Export bot bundles for integration
 - ☁️ Cloud hosting & sharing of your bots
-
+    
 ## 🧱 Tech Stack (Initial Plan)
 
 - **Frontend**: Streamlit (for MVP), later React
