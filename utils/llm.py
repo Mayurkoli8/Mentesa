@@ -19,14 +19,10 @@ MODEL_NAME = "models/gemini-2.5-pro"
 model = genai.GenerativeModel(model_name=MODEL_NAME, generation_config={"temperature": 0.7})
 
 def generate_bot_config_gemini(prompt):
-    import os
-    import json
-    import google.generativeai as genai
-
-    # Check if API key is actually set
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise RuntimeError("❌ GEMINI_API_KEY not set in environment!")
+        st.error("❌ GEMINI_API_KEY not set in environment!")
+        st.stop()
 
     genai.configure(api_key=api_key)
 
@@ -42,62 +38,44 @@ def generate_bot_config_gemini(prompt):
     Now generate JSON for: {prompt}
     """
 
-    print("DEBUG: Sending prompt to Gemini:")
-    print(instruction)
-
     try:
         model = genai.GenerativeModel("models/gemini-2.5-pro")
         response = model.generate_content(instruction)
 
-        # --- DEBUG: Log entire response object ---
-        print("DEBUG: Raw Gemini response object:")
-        print(response)
+        # Show full raw response in Streamlit so we can see the error cause
+        st.write("### DEBUG: Raw Gemini response", response)
 
-        # --- Check candidates & finish reason ---
-        if not response.candidates:
-            raise RuntimeError("❌ No candidates in Gemini response.")
-        for i, c in enumerate(response.candidates):
-            print(f"DEBUG: Candidate {i} finish_reason:", c.finish_reason)
-            if hasattr(c, "content") and hasattr(c.content, "parts"):
-                for p in c.content.parts:
-                    print("DEBUG: Part text:", getattr(p, "text", None))
-
-        # --- Try extracting text ---
         if hasattr(response, "text") and response.text:
             text = response.text.strip()
         else:
             parts = []
-            for c in response.candidates:
-                if c.content and c.content.parts:
+            for c in getattr(response, "candidates", []):
+                if getattr(c, "content", None) and getattr(c.content, "parts", None):
                     for p in c.content.parts:
-                        if hasattr(p, "text") and p.text:
+                        if getattr(p, "text", None):
                             parts.append(p.text)
             text = "\n".join(parts).strip()
 
         if not text:
-            raise RuntimeError("❌ Gemini returned empty text.")
+            st.error("❌ Gemini returned empty text.")
+            st.stop()
 
-        # --- Remove markdown fences ---
         if text.startswith("```"):
             text = text.strip("` \n")
             if text.lower().startswith("json"):
                 text = text[4:].strip()
 
-        # --- Parse JSON ---
-        try:
-            cfg = json.loads(text)
-        except json.JSONDecodeError as e:
-            raise RuntimeError(f"[Generation Error] Invalid JSON from Gemini:\n{text}") from e
+        cfg = json.loads(text)
 
-        # --- Validate ---
         if not isinstance(cfg, dict) or "name" not in cfg or "personality" not in cfg:
-            raise RuntimeError(f"[Generation Error] Missing keys in output: {cfg}")
+            st.error(f"❌ Missing keys in output: {cfg}")
+            st.stop()
 
         return cfg
 
     except Exception as e:
-        raise RuntimeError(f"[Generation Error] {e}")
-
+        st.error(f"🚨 Generation Error: {e}")
+        st.stop()
 def chat_with_gemini(message: str, personality: str) -> str:
     prompt = (
         f"You are a helpful chatbot with this personality:\n"
