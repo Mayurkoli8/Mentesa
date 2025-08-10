@@ -3,7 +3,7 @@ import json
 import google.generativeai as genai
 import streamlit as st
 
-# Load API key from env or Streamlit secrets
+# Load API key
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
     try:
@@ -14,7 +14,6 @@ if not api_key:
 # Configure Gemini client
 genai.configure(api_key=api_key)
 
-# Use one consistent model everywhere
 MODEL_NAME = "models/gemini-2.5-pro"
 model = genai.GenerativeModel(model_name=MODEL_NAME, generation_config={"temperature": 0.7})
 
@@ -32,14 +31,12 @@ def generate_bot_config_gemini(prompt):
     """
 
     try:
-        model = genai.GenerativeModel("models/gemini-2.5-pro")
         response = model.generate_content(instruction)
 
-        # --- Handle both normal and streaming responses ---
+        # Extract text
         if hasattr(response, "text") and response.text:
             text = response.text.strip()
         elif hasattr(response, "candidates") and response.candidates:
-            # Some environments don't expose .text
             parts = []
             for c in response.candidates:
                 if c.content and c.content.parts:
@@ -50,19 +47,19 @@ def generate_bot_config_gemini(prompt):
         else:
             raise RuntimeError("Gemini returned empty response.")
 
-        # --- Remove markdown fences ---
+        # Remove markdown fences
         if text.startswith("```"):
             text = text.strip("` \n")
             if text.lower().startswith("json"):
                 text = text[4:].strip()
 
-        # --- Parse JSON ---
+        # Parse JSON
         try:
             cfg = json.loads(text)
         except json.JSONDecodeError as e:
             raise RuntimeError(f"[Generation Error] Gemini returned invalid JSON:\n{text}") from e
 
-        # --- Validate ---
+        # Validate JSON
         if not isinstance(cfg, dict) or "name" not in cfg or "personality" not in cfg:
             raise RuntimeError(f"[Generation Error] Missing keys in output: {cfg}")
 
@@ -78,8 +75,20 @@ def chat_with_gemini(message: str, personality: str) -> str:
     )
     try:
         response = model.generate_content(prompt)
-        if not hasattr(response, "text") or not response.text.strip():
-            return "[Chat Error] Gemini returned empty response."
-        return response.text.strip()
+
+        # Extract text
+        if hasattr(response, "text") and response.text:
+            return response.text.strip()
+        elif hasattr(response, "candidates") and response.candidates:
+            parts = []
+            for c in response.candidates:
+                if c.content and c.content.parts:
+                    for p in c.content.parts:
+                        if hasattr(p, "text") and p.text:
+                            parts.append(p.text)
+            return "\n".join(parts).strip()
+
+        return "[Chat Error] Gemini returned empty response."
+
     except Exception as e:
         return f"[Chat Error] {str(e)}"
