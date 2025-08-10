@@ -89,18 +89,18 @@ st.set_page_config(page_title="Mentesa", page_icon="🧠", layout="centered")
 # ---------------- BOT CREATION ----------------
 def create_and_save_bot():
     st.subheader("Create Your Bot")
-    prompt = st.text_area("Enter your bot's configuration prompt:")
+    prompt = st.text_area("Enter what type of bot you want..")
 
-    if st.button("Generate Bot Config"):
+    if st.button("Create Bot"):
         if not prompt.strip():
             st.warning("Please enter a prompt before generating.")
             return
 
-        with st.spinner("Generating bot configuration..."):
+        with st.spinner("Generating bot..."):
             cfg = generate_bot_config_gemini(prompt)
 
         if not cfg or "error" in cfg:
-            st.error(f"Failed to generate config: {cfg.get('error', 'No data returned')}")
+            st.error(f"Failed to generate bot: {cfg.get('error', 'No data returned')}")
             return
 
         # Load current bots
@@ -118,7 +118,6 @@ def create_and_save_bot():
         save_bots(bots)
 
         st.success(f"✅ Bot '{cfg['name']}' created and saved!")
-        st.json(cfg)
 
 # ---------------- CHAT INTERFACE ----------------
 def chat_interface():
