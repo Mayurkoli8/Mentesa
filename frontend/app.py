@@ -78,7 +78,7 @@ if _st.sidebar.button("🔎 DEBUG: Multi-model Gemini Test"):
     _st.json([{"model": r[0], "status": r[1], "text_preview": (r[2][:200] if r[1]=="ok" and r[2] else None)} for r in results])
     _st.stop()
 # --- END MULTI-MODEL DEBUG BLOCK ---
--
+
 # Add root dir (mentesa/) to sys.path so utils/ can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
