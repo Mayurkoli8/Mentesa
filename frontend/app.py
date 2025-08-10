@@ -5,75 +5,80 @@ import sys
 import os
 
 # --- DEBUG BLOCK: paste near top of frontend/app.py, after imports ---
+# --- MULTI-MODEL DEBUG BLOCK: paste this near the top of frontend/app.py, after imports ---
 import os
-import streamlit as _st  # keep original st in file as st
+import streamlit as _st
 
-if _st.sidebar.button("🔎 DEBUG: Test Gemini Key & Models"):
+if _st.sidebar.button("🔎 DEBUG: Multi-model Gemini Test"):
     import google.generativeai as genai
+    import time
 
-    # Find key from env or Streamlit secrets
     key = os.getenv("GEMINI_API_KEY") or _st.secrets.get("GEMINI_API_KEY") or _st.secrets.get("GOOGLE_API_KEY")
     _st.write("Key present in env/secrets:", bool(key))
-    if key:
-        # show only first 8 chars so we can confirm it's the same key (no secrets leak)
+    if not key:
+        _st.error("No GEMINI_API_KEY found.")
+        _st.stop()
+
+    genai.configure(api_key=key)
+
+    # shortlist of models to try (from your list). Change or reorder as needed.
+    models_to_try = [
+        "models/gemini-2.5-pro",
+        "models/gemini-1.5-pro",
+        "models/gemini-2.5-flash",
+        "models/gemini-1.5-flash",
+        "models/gemini-1.5-pro-latest"
+    ]
+
+    results = []
+    for mname in models_to_try:
+        _st.write("----")
+        _st.write("Trying model:", mname)
         try:
-            _st.write("Key prefix (first 8 chars):", key[:8])
-        except Exception:
-            _st.write("Key present (cannot display prefix)")
-
-        try:
-            genai.configure(api_key=key)
-
-            # list_models() returns a generator-like object — convert to list
-            models_gen = genai.list_models()
-            models_list = list(models_gen)
-            _st.write("Got models count (truncated to 200):", len(models_list))
-            _st.json([m.name for m in models_list][:200])
-
-            # pick an explicit model from the list (change if needed)
-            model_name = "models/gemini-2.5-pro"
-            if not any(m.name == model_name for m in models_list):
-                # fallback to first available model name
-                model_name = models_list[0].name
-                _st.warning(f"Requested model not in list; using fallback: {model_name}")
-
-            _st.write("Testing generate_content against model:", model_name)
-            model = genai.GenerativeModel(model_name)
-            # safe short prompt
+            model = genai.GenerativeModel(mname)
+            # very short safe prompt
             resp = model.generate_content("Say hello in one short sentence.")
-            _st.write("Type of response object:", type(resp))
-
-            # Safe access to resp.text
-            has_text = hasattr(resp, "text")
-            _st.write("Has .text attribute? ->", has_text)
+            _st.write("Response type:", type(resp))
+            # safe text access
+            text = None
             try:
-                _st.write("resp.text (repr):", repr(getattr(resp, "text", None)))
+                if hasattr(resp, "text"):
+                    text = resp.text
             except Exception as e:
-                _st.write("Could not read resp.text:", e)
+                _st.write("Accessing resp.text raised:", e)
 
-            # Dump candidates if present (safe extraction)
-            try:
-                cand_dump = []
-                for c in getattr(resp, "candidates", []):
-                    parts = []
-                    for p in getattr(getattr(c, "content", None), "parts", []):
+            # collect candidate parts if available
+            cand_dump = []
+            for c in getattr(resp, "candidates", []):
+                parts = []
+                for p in getattr(getattr(c, "content", None), "parts", []):
+                    try:
                         parts.append(getattr(p, "text", None))
-                    cand_dump.append({
-                        "finish_reason": getattr(c, "finish_reason", None),
-                        "safety": getattr(c, "safety_ratings", None),
-                        "parts": parts
-                    })
-                _st.write("Candidates (raw):")
-                _st.json(cand_dump)
-            except Exception as e:
-                _st.write("Could not dump candidates:", e)
+                    except Exception:
+                        parts.append(None)
+                cand_dump.append({
+                    "finish_reason": getattr(c, "finish_reason", None),
+                    "safety": getattr(c, "safety_ratings", None),
+                    "parts": parts
+                })
 
-        except Exception as e:
-            _st.exception(e)
-    else:
-        _st.error("No key found in env or Streamlit secrets. Please add GEMINI_API_KEY in Manage app → Settings → Secrets.")
+            _st.write("resp.text (repr):", repr(text))
+            _st.write("Candidates (raw):")
+            _st.json(cand_dump)
+            results.append((mname, "ok", text, cand_dump))
+        except Exception as exc:
+            # show full exception
+            _st.write("Exception for model:", mname)
+            _st.exception(exc)
+            results.append((mname, "error", str(exc)))
+        # tiny pause to be polite
+        time.sleep(0.5)
+
+    _st.write("===== SUMMARY =====")
+    _st.json([{"model": r[0], "status": r[1], "text_preview": (r[2][:200] if r[1]=="ok" and r[2] else None)} for r in results])
     _st.stop()
-# --- END DEBUG BLOCK ---
+# --- END MULTI-MODEL DEBUG BLOCK ---
+-
 # Add root dir (mentesa/) to sys.path so utils/ can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
