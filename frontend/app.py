@@ -4,80 +4,6 @@ import json
 import sys
 import os
 
-# --- DEBUG BLOCK: paste near top of frontend/app.py, after imports ---
-# --- MULTI-MODEL DEBUG BLOCK: paste this near the top of frontend/app.py, after imports ---
-import os
-import streamlit as _st
-
-if _st.sidebar.button("🔎 DEBUG: Multi-model Gemini Test"):
-    import google.generativeai as genai
-    import time
-
-    key = os.getenv("GEMINI_API_KEY") or _st.secrets.get("GEMINI_API_KEY") or _st.secrets.get("GOOGLE_API_KEY")
-    _st.write("Key present in env/secrets:", bool(key))
-    if not key:
-        _st.error("No GEMINI_API_KEY found.")
-        _st.stop()
-
-    genai.configure(api_key=key)
-
-    # shortlist of models to try (from your list). Change or reorder as needed.
-    models_to_try = [
-        "models/gemini-2.5-pro",
-        "models/gemini-1.5-pro",
-        "models/gemini-2.5-flash",
-        "models/gemini-1.5-flash",
-        "models/gemini-1.5-pro-latest"
-    ]
-
-    results = []
-    for mname in models_to_try:
-        _st.write("----")
-        _st.write("Trying model:", mname)
-        try:
-            model = genai.GenerativeModel(mname)
-            # very short safe prompt
-            resp = model.generate_content("Say hello in one short sentence.")
-            _st.write("Response type:", type(resp))
-            # safe text access
-            text = None
-            try:
-                if hasattr(resp, "text"):
-                    text = resp.text
-            except Exception as e:
-                _st.write("Accessing resp.text raised:", e)
-
-            # collect candidate parts if available
-            cand_dump = []
-            for c in getattr(resp, "candidates", []):
-                parts = []
-                for p in getattr(getattr(c, "content", None), "parts", []):
-                    try:
-                        parts.append(getattr(p, "text", None))
-                    except Exception:
-                        parts.append(None)
-                cand_dump.append({
-                    "finish_reason": getattr(c, "finish_reason", None),
-                    "safety": getattr(c, "safety_ratings", None),
-                    "parts": parts
-                })
-
-            _st.write("resp.text (repr):", repr(text))
-            _st.write("Candidates (raw):")
-            _st.json(cand_dump)
-            results.append((mname, "ok", text, cand_dump))
-        except Exception as exc:
-            # show full exception
-            _st.write("Exception for model:", mname)
-            _st.exception(exc)
-            results.append((mname, "error", str(exc)))
-        # tiny pause to be polite
-        time.sleep(0.5)
-
-    _st.write("===== SUMMARY =====")
-    _st.json([{"model": r[0], "status": r[1], "text_preview": (r[2][:200] if r[1]=="ok" and r[2] else None)} for r in results])
-    _st.stop()
-# --- END MULTI-MODEL DEBUG BLOCK ---
 
 # Add root dir (mentesa/) to sys.path so utils/ can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -89,46 +15,39 @@ from utils.chat_ops import load_chat_history, save_chat_history, clear_chat_hist
 
 st.set_page_config(page_title="Mentesa", page_icon="🧠")
 
-import streamlit as st
-import json
-from utils.llm import generate_bot_config_gemini  # your updated safe function
 
 def create_and_save_bot():
-    st.subheader("Create Your Bot")
-    prompt = st.text_area("Enter your bot's configuration prompt:")
-
-    if st.button("Generate Bot Config"):
+    """Section 1: Describe & create a new bot via LLM."""
+    st.header("🪄 Describe & Create Your Bot")
+    prompt = st.text_input("What should your bot do?", key="bot_prompt")
+    if st.button("Create & Chat", key="create_chat"):
         if not prompt.strip():
-            st.warning("Please enter a prompt before generating.")
-            return
+            st.error("Please enter a description.")
+            return None, None
 
-        with st.spinner("Generating bot configuration..."):
-            cfg = generate_bot_config_gemini(prompt)
+        with st.spinner("Generating bot…"):
+            cfg_text = generate_bot_config_gemini(prompt)
 
-        # Handle errors or empty responses gracefully
-        if isinstance(cfg, dict) and "error" in cfg:
-            st.error(f"Failed to generate config: {cfg['error']}")
-            return
-
-        if not cfg:
-            st.error("Gemini returned no configuration.")
-            return
-
-        # Convert to JSON string for saving
         try:
-            cfg_str = json.dumps(cfg, indent=2, ensure_ascii=False)
-        except Exception as e:
-            st.error(f"Error serializing configuration: {e}")
-            return
+            clean = cfg_text.strip().strip("` ")
+            cfg = json.loads(clean)
+            name = cfg["name"]
+            personality = cfg["personality"]
+        except json.JSONDecodeError as e:
+            st.error("🚨 Invalid JSON from model:")
+            st.code(cfg_text, language="json")
+            st.error(f"Error: {e}")
+            st.stop()
 
-        # Save to file
-        try:
-            with open("bot_config.json", "w", encoding="utf-8") as f:
-                f.write(cfg_str)
-            st.success("✅ Bot configuration saved successfully!")
-            st.json(cfg)
-        except Exception as e:
-            st.error(f"Error saving configuration: {e}")
+        bots = load_bots()
+        bot_id = str(uuid.uuid4())
+        bots[bot_id] = {"name": name, "personality": personality}
+        save_bots(bots)
+        st.success(f"✅ Bot '{name}' created!")
+        st.rerun()
+
+    return None, None  # No new bot created this run
+
 
 def chat_interface():
     """Section 2: Select, chat, clear history, or delete a bot."""
