@@ -99,28 +99,26 @@ def create_and_save_bot():
         with st.spinner("Generating bot configuration..."):
             cfg = generate_bot_config_gemini(prompt)
 
-        if isinstance(cfg, dict) and "error" in cfg:
-            st.error(f"Failed to generate config: {cfg['error']}")
+        if not cfg or "error" in cfg:
+            st.error(f"Failed to generate config: {cfg.get('error', 'No data returned')}")
             return
 
-        if not cfg:
-            st.error("Gemini returned no configuration.")
-            return
+        # Load current bots
+        bots = load_bots()
 
-        try:
-            cfg_str = json.dumps(cfg, indent=2, ensure_ascii=False)
-        except Exception as e:
-            st.error(f"Error serializing configuration: {e}")
-            return
+        # Create a new bot ID
+        bot_id = str(uuid.uuid4())
+        bots[bot_id] = {
+            "name": cfg["name"],
+            "personality": cfg["personality"],
+            "settings": cfg.get("settings", {})
+        }
 
-        try:
-            with open("bot_config.json", "w", encoding="utf-8") as f:
-                f.write(cfg_str)
-            st.success("✅ Bot configuration saved successfully!")
-            st.json(cfg)
-        except Exception as e:
-            st.error(f"Error saving configuration: {e}")
+        # Save bot to bots.json
+        save_bots(bots)
 
+        st.success(f"✅ Bot '{cfg['name']}' created and saved!")
+        st.json(cfg)
 
 # ---------------- CHAT INTERFACE ----------------
 def chat_interface():
