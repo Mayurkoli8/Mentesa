@@ -136,7 +136,8 @@ def chat_interface():
         key="chat_select",
     )
 
-    st.markdown(f"**Personality:** {bot_info['personality']}")
+    #follwing is to show the personality of the bot
+    #st.markdown(f"**Personality:** {bot_info['personality']}")
 
     history = load_chat_history(bot_id)
     for turn in history:
