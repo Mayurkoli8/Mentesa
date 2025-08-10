@@ -4,6 +4,27 @@ import json
 import sys
 import os
 
+# -- paste this near the top of frontend/app.py, after imports --
+if "test_gemini" not in st.session_state:
+    st.session_state["test_gemini"] = False
+
+if st.sidebar.button("🔎 Test Gemini Key"):
+    import google.generativeai as genai
+    api_key = os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY") or st.secrets.get("GOOGLE_API_KEY")
+    if not api_key:
+        st.error("No Gemini API key found in env or Streamlit secrets.")
+    else:
+        try:
+            genai.configure(api_key=api_key)
+            models = genai.list_models()
+            st.sidebar.success("Models fetched — check logs below.")
+            st.write("Available models (first 40):")
+            st.json([m.name for m in models][:40])
+        except Exception as e:
+            st.sidebar.error("Error fetching models — see exception below.")
+            st.exception(e)
+    st.stop()
+
 
 # Add root dir (mentesa/) to sys.path so utils/ can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
