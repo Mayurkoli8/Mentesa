@@ -25,29 +25,37 @@ def generate_bot_config_gemini(prompt):
     JSON format:
     {{
       "name": "string",
-      "description": "string",
+      "personality": "string",
       "settings": {{}}
     }}
     Now generate JSON for: {prompt}
     """
+
     try:
+        model = genai.GenerativeModel("gemini-2.5-pro")
         response = model.generate_content(instruction)
+        raw_text = response.text.strip()
 
-        if not hasattr(response, "text") or not response.text.strip():
-            raise RuntimeError("Gemini returned empty response.")
+        # Remove markdown code fences if present
+        if raw_text.startswith("```"):
+            raw_text = raw_text.strip("` \n")
+            if raw_text.lower().startswith("json"):
+                raw_text = raw_text[4:].strip()
 
-        text = response.text.strip()
+        # Try parsing as JSON
+        try:
+            cfg = json.loads(raw_text)
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                f"[Generation Error] Gemini returned invalid JSON:\n{raw_text}"
+            ) from e
 
-        # Handle markdown-wrapped JSON
-        if text.startswith("```"):
-            text = text.strip("` \n")
-            if text.lower().startswith("json"):
-                text = text[4:].strip()
+        # Validate basic keys
+        if not isinstance(cfg, dict) or "name" not in cfg or "personality" not in cfg:
+            raise RuntimeError(f"[Generation Error] Missing required keys in output: {cfg}")
 
-        return json.loads(text)
+        return cfg
 
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"[Generation Error] Gemini returned invalid JSON: {text}") from e
     except Exception as e:
         raise RuntimeError(f"[Generation Error] {e}")
 
