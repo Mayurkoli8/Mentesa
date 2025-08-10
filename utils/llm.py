@@ -15,7 +15,7 @@ if not api_key:
 genai.configure(api_key=api_key)
 
 # Use one consistent model everywhere
-MODEL_NAME = "models/gemini-2.0-pro"
+MODEL_NAME = "models/gemini-2.5-pro"
 model = genai.GenerativeModel(model_name=MODEL_NAME, generation_config={"temperature": 0.7})
 
 def generate_bot_config_gemini(prompt):
