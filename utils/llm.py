@@ -15,7 +15,7 @@ genai.configure(api_key=api_key)
 
 # ✅ DON'T use api_version — this causes the error
 model = genai.GenerativeModel(
-    model_name="gemini-pro-2.5-flash",
+    model_name="gemini-pro-1.5-pro",
     generation_config={"temperature": 0.7}
 )
 
