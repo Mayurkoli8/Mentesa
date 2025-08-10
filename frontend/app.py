@@ -4,6 +4,57 @@ import json
 import sys
 import os
 
+# --- DEBUG BLOCK: paste near top of frontend/app.py, after imports ---
+import os
+import streamlit as _st  # keep original st in file as st
+
+if _st.sidebar.button("🔎 DEBUG: Test Gemini Key & Models"):
+    import google.generativeai as genai
+
+    key = os.getenv("GEMINI_API_KEY") or _st.secrets.get("GEMINI_API_KEY") or _st.secrets.get("GOOGLE_API_KEY")
+    _st.write("Key present in env/secrets:", bool(key))
+    if key:
+        # show only first 8 chars so we can confirm it's the same key (no secrets leak)
+        try:
+            _st.write("Key prefix (first 8 chars):", key[:8])
+        except Exception:
+            _st.write("Key present (cannot display prefix)")
+
+        try:
+            genai.configure(api_key=key)
+            models = genai.list_models()
+            _st.success("✅ list_models succeeded")
+            _st.write("Available model names (first 40):")
+            _st.json([m.name for m in models][:40])
+
+            # try a tiny generate with the first model (safe short prompt)
+            model_name = models[0].name
+            _st.write("Testing generate_content against model:", model_name)
+            model = genai.GenerativeModel(model_name)
+            resp = model.generate_content("Say hello in one word.")
+            _st.write("Type of response object:", type(resp))
+            # show possible attributes safely
+            _st.write("Has .text attribute? ->", hasattr(resp, "text"))
+            try:
+                _st.write("resp.text (repr):", repr(getattr(resp, "text", None)))
+            except Exception as e:
+                _st.write("Could not read resp.text:", e)
+            # dump raw candidates if present
+            try:
+                _st.write("Candidates (raw):")
+                _st.json([{
+                    "finish_reason": getattr(c, "finish_reason", None),
+                    "parts": [ getattr(p, "text", None) for p in getattr(getattr(c, "content", None), "parts", []) ]
+                } for c in getattr(resp, "candidates", [])])
+            except Exception as e:
+                _st.write("Could not dump candidates:", e)
+
+        except Exception as e:
+            _st.exception(e)
+    else:
+        _st.error("No key found in env or Streamlit secrets. Please add GEMINI_API_KEY in Manage app → Settings → Secrets.")
+    _st.stop()
+# --- end debug block ---
 
 
 # Add root dir (mentesa/) to sys.path so utils/ can be imported
