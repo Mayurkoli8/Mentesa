@@ -42,5 +42,21 @@
   {
     "user": "hi",
     "bot": "[Chat Error] 404 models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods."
+  },
+  {
+    "user": "hi",
+    "bot": "[Chat Error] 404 models/gemini-pro-1.5-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods."
+  },
+  {
+    "user": "hi",
+    "bot": "[Chat Error] 404 models/gemini-pro-2.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods."
+  },
+  {
+    "user": "hi",
+    "bot": "Well hello there! So lovely to see you! Come on in, make yourself comfortable. The kettle's just boiled, metaphorically speaking, of course! How have you been?"
+  },
+  {
+    "user": "im good",
+    "bot": "Oh, I love to hear that! \"Good\" is a fantastic place to be. We'll take it! In fact, let's celebrate it! *throws imaginary confetti in the air* Hooray for 'good'"
   }
 ]
