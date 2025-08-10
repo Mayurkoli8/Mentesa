@@ -19,8 +19,16 @@ MODEL_NAME = "models/gemini-2.5-pro"
 model = genai.GenerativeModel(model_name=MODEL_NAME, generation_config={"temperature": 0.7})
 
 def generate_bot_config_gemini(prompt):
+    import os
     import json
     import google.generativeai as genai
+
+    # Check if API key is actually set
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("❌ GEMINI_API_KEY not set in environment!")
+
+    genai.configure(api_key=api_key)
 
     instruction = f"""
     You are to output ONLY a valid JSON object.
@@ -34,42 +42,40 @@ def generate_bot_config_gemini(prompt):
     Now generate JSON for: {prompt}
     """
 
+    print("DEBUG: Sending prompt to Gemini:")
+    print(instruction)
+
     try:
         model = genai.GenerativeModel("models/gemini-2.5-pro")
         response = model.generate_content(instruction)
 
-        # --- Extract text from various possible shapes ---
-        text = None
+        # --- DEBUG: Log entire response object ---
+        print("DEBUG: Raw Gemini response object:")
+        print(response)
 
-        # 1. If API returns plain .text
-        if hasattr(response, "text") and isinstance(response.text, str):
+        # --- Check candidates & finish reason ---
+        if not response.candidates:
+            raise RuntimeError("❌ No candidates in Gemini response.")
+        for i, c in enumerate(response.candidates):
+            print(f"DEBUG: Candidate {i} finish_reason:", c.finish_reason)
+            if hasattr(c, "content") and hasattr(c.content, "parts"):
+                for p in c.content.parts:
+                    print("DEBUG: Part text:", getattr(p, "text", None))
+
+        # --- Try extracting text ---
+        if hasattr(response, "text") and response.text:
             text = response.text.strip()
-
-        # 2. If API returns candidates object
-        elif hasattr(response, "candidates"):
+        else:
             parts = []
-            for c in getattr(response, "candidates", []):
-                if getattr(c, "content", None) and getattr(c.content, "parts", None):
+            for c in response.candidates:
+                if c.content and c.content.parts:
                     for p in c.content.parts:
-                        if getattr(p, "text", None):
+                        if hasattr(p, "text") and p.text:
                             parts.append(p.text)
             text = "\n".join(parts).strip()
 
-        # 3. If API returns a raw dict
-        elif isinstance(response, dict):
-            try:
-                candidates = response.get("candidates", [])
-                parts = []
-                for c in candidates:
-                    for p in c.get("content", {}).get("parts", []):
-                        if "text" in p:
-                            parts.append(p["text"])
-                text = "\n".join(parts).strip()
-            except Exception:
-                pass
-
         if not text:
-            raise RuntimeError(f"Gemini returned empty or unrecognized response format:\n{response}")
+            raise RuntimeError("❌ Gemini returned empty text.")
 
         # --- Remove markdown fences ---
         if text.startswith("```"):
@@ -81,7 +87,7 @@ def generate_bot_config_gemini(prompt):
         try:
             cfg = json.loads(text)
         except json.JSONDecodeError as e:
-            raise RuntimeError(f"[Generation Error] Gemini returned invalid JSON:\n{text}") from e
+            raise RuntimeError(f"[Generation Error] Invalid JSON from Gemini:\n{text}") from e
 
         # --- Validate ---
         if not isinstance(cfg, dict) or "name" not in cfg or "personality" not in cfg:
