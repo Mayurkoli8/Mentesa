@@ -15,27 +15,31 @@ from utils.chat_ops import load_chat_history, save_chat_history, clear_chat_hist
 
 st.set_page_config(page_title="Mentesa", page_icon="🧠")
 
-
 def create_and_save_bot():
     """Section 1: Describe & create a new bot via LLM."""
     st.header("🪄 Describe & Create Your Bot")
     prompt = st.text_input("What should your bot do?", key="bot_prompt")
+
     if st.button("Create & Chat", key="create_chat"):
         if not prompt.strip():
             st.error("Please enter a description.")
             return None, None
 
         with st.spinner("Generating bot…"):
-            cfg_text = generate_bot_config_gemini(prompt)
+            cfg = generate_bot_config_gemini(prompt)  # ✅ Already a dict
 
         try:
-            clean = cfg_text.strip().strip("` ")
-            cfg = json.loads(clean)
-            name = cfg["name"]
-            personality = cfg["personality"]
-        except json.JSONDecodeError as e:
-            st.error("🚨 Invalid JSON from model:")
-            st.code(cfg_text, language="json")
+            if not isinstance(cfg, dict):
+                st.error("🚨 LLM did not return a valid bot configuration.")
+                st.code(str(cfg))
+                st.stop()
+
+            name = cfg.get("name", "Unnamed Bot")
+            personality = cfg.get("personality", "")
+
+        except Exception as e:
+            st.error("🚨 Error processing bot configuration:")
+            st.code(str(cfg))
             st.error(f"Error: {e}")
             st.stop()
 
@@ -43,11 +47,11 @@ def create_and_save_bot():
         bot_id = str(uuid.uuid4())
         bots[bot_id] = {"name": name, "personality": personality}
         save_bots(bots)
+
         st.success(f"✅ Bot '{name}' created!")
         st.rerun()
 
     return None, None  # No new bot created this run
-
 
 def chat_interface():
     """Section 2: Select, chat, clear history, or delete a bot."""
