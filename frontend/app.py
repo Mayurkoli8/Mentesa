@@ -111,10 +111,10 @@ def chat_interface():
       <style>
         body {{ margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial; }}
         .chat-box {{
-            height: 420px;
+            height: 500px;
             overflow-y: auto;
             padding: 12px;
-            max-width: 80%;
+            width: 600px;
             box-sizing: border-box;
             background: transaparent;
         }}
