@@ -33,18 +33,23 @@ def generate_bot_config_gemini(prompt):
     try:
         response = model.generate_content(instruction)
 
-        # Extract text
-        if hasattr(response, "text") and response.text:
-            text = response.text.strip()
-        elif hasattr(response, "candidates") and response.candidates:
-            parts = []
-            for c in response.candidates:
-                if c.content and c.content.parts:
-                    for p in c.content.parts:
-                        if hasattr(p, "text") and p.text:
-                            parts.append(p.text)
-            text = "\n".join(parts).strip()
-        else:
+        # Extract text from response
+        try:
+            text = response.text
+        except ValueError:
+            # If direct text access fails, try to get it from parts
+            try:
+                parts = []
+                for part in response.parts:
+                    if hasattr(part, "text"):
+                        parts.append(part.text)
+                text = " ".join(parts).strip()
+                if not text:
+                    raise RuntimeError("No text found in response parts")
+            except Exception as e:
+                raise RuntimeError(f"Failed to extract text from response: {str(e)}")
+        
+        if not text:
             raise RuntimeError("Gemini returned empty response.")
 
         # Remove markdown fences
@@ -76,19 +81,24 @@ def chat_with_gemini(message: str, personality: str) -> str:
     try:
         response = model.generate_content(prompt)
 
-        # Extract text
-        if hasattr(response, "text") and response.text:
-            return response.text.strip()
-        elif hasattr(response, "candidates") and response.candidates:
-            parts = []
-            for c in response.candidates:
-                if c.content and c.content.parts:
-                    for p in c.content.parts:
-                        if hasattr(p, "text") and p.text:
-                            parts.append(p.text)
-            return "\n".join(parts).strip()
-
-        return "[Chat Error] Gemini returned empty response."
+        # Extract text from response
+        try:
+            text = response.text
+            return text.strip()
+        except ValueError:
+            # If direct text access fails, try to get it from parts
+            try:
+                parts = []
+                for part in response.parts:
+                    if hasattr(part, "text"):
+                        parts.append(part.text)
+                text = " ".join(parts).strip()
+                if text:
+                    return text
+            except Exception:
+                pass
+            
+        return "[Chat Error] Failed to get response from Gemini"
 
     except Exception as e:
         return f"[Chat Error] {str(e)}"
