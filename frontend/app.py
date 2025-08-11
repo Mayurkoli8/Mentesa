@@ -193,7 +193,7 @@ def chat_interface():
     """
 
     # Render chat in an iframe. Height slightly larger than chat-box to accommodate padding.
-    components_html(iframe_html, height=460, width=100%, scrolling=True)
+    components_html(iframe_html, height=460, width=1200, scrolling=True)
 
     # User input area below the iframe
     user_input = st.chat_input("Type your message…")
