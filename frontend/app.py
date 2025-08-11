@@ -114,7 +114,7 @@ def chat_interface():
             height: 500px;
             overflow-y: auto;
             padding: 12px;
-            width: 600px;
+            width: 100%;
             box-sizing: border-box;
             background: transaparent;
         }}
