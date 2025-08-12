@@ -79,7 +79,7 @@ uvicorn main:app --reload
 4. Launch the frontend:
 ```bash
 cd frontend
-python app.py
+python -m http.server 3000
 ```
 
 The application will be available at:
