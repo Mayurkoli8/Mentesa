@@ -1,51 +1,58 @@
-import json
 import os
+import json
+import uuid
+from datetime import datetime
 
-# Path to the bots JSON store
-BOTS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "bots.json")
+# Data storage path
+BOTS_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "data/bots.json")
+os.makedirs(os.path.dirname(BOTS_FILE), exist_ok=True)
 
-
-def load_bots():
-    """Load all bots from the JSON store."""
+# --- Internal helpers ---
+def _load_bots():
     if not os.path.exists(BOTS_FILE):
         return {}
-    with open(BOTS_FILE, "r") as f:
-        return json.load(f)
+    with open(BOTS_FILE, "r", encoding="utf-8") as f:
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return {}
 
+def _save_bots(bots_data):
+    with open(BOTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(bots_data, f, indent=2, ensure_ascii=False)
 
-def save_bots(data):
-    """Save the bots dictionary to the JSON store."""
-    os.makedirs(os.path.dirname(BOTS_FILE), exist_ok=True)
-    with open(BOTS_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+# --- Public functions ---
+def create_bot(name, personality="", config=None):
+    """Create a new bot and return its ID."""
+    bots = _load_bots()
+    bot_id = str(uuid.uuid4())
 
+    bots[bot_id] = {
+        "id": bot_id,
+        "name": name,
+        "personality": personality,
+        "config": config or {},
+        "created_at": datetime.utcnow().isoformat()
+    }
 
-def delete_bot(bot_id: str):
-    """Remove a bot entry and its associated chat history file."""
-    # Remove from bots.json
-    bots = load_bots()
+    _save_bots(bots)
+    return bot_id
+
+def get_bot(bot_id):
+    """Return a bot's data or None."""
+    bots = _load_bots()
+    return bots.get(bot_id)
+
+def list_bots():
+    """Return a list of all bots."""
+    bots = _load_bots()
+    return list(bots.values())
+
+def delete_bot(bot_id):
+    """Delete a bot. Return True if deleted, False if not found."""
+    bots = _load_bots()
     if bot_id in bots:
         del bots[bot_id]
-        save_bots(bots)
-
-    # Remove chat history file
-    from utils.chat_ops import get_chat_file_path
-    chat_file = get_chat_file_path(bot_id)
-    if os.path.exists(chat_file):
-        os.remove(chat_file)
-
-
-def rename_bot(bot_id: str, new_name: str):
-    """Rename an existing bot."""
-    bots = load_bots()
-    if bot_id in bots:
-        bots[bot_id]["name"] = new_name
-        save_bots(bots)
-
-
-def update_personality(bot_id: str, new_personality):
-    """Update the personality text of an existing bot."""
-    bots = load_bots()
-    if bot_id in bots:
-        bots[bot_id]["personality"] = new_personality
-        save_bots(bots)
+        _save_bots(bots)
+        return True
+    return False

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mentesa — Bot Manager & Chat</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Mentesa</h1>
+      <p class="muted">AI Bot Management & Chat Platform — <code>http://localhost:8000</code></p>
+    </header>
+
+    <main>
+      <aside class="sidebar">
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Your Bots</h2>
+            <span id="botsCount" class="badge">0</span>
+          </div>
+          <div id="botsList" class="list"></div>
+          <div id="botsEmpty" class="muted">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/>
+              <line x1="15" y1="9" x2="15.01" y2="9"/>
+            </svg>
+            <p>No bots created yet</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>Create bot</h3>
+          <form id="createForm">
+            <input id="name" placeholder="Bot name" required />
+            <textarea id="personality" placeholder="Personality (optional)"></textarea>
+            <textarea id="config" placeholder='Config JSON (optional)'></textarea>
+            <button type="submit" class="btn primary">Create</button>
+          </form>
+        </section>
+      </aside>
+
+      <section class="panel chat-panel">
+        <div class="chat-header">
+          <h2 id="chatTitle">Chat</h2>
+          <div id="selectedBotMeta" class="muted">Select a bot to start</div>
+        </div>
+
+        <div id="chatArea" class="chat-area">
+          <div id="chatMessages" class="messages"></div>
+        </div>
+
+        <form id="chatForm" class="chat-form">
+          <input id="chatInput" placeholder="Type a message..." autocomplete="off" />
+          <button type="submit" class="btn">Send</button>
+        </form>
+      </section>
+    </main>
+
+    <footer>
+      <small>Keep backend running. FastAPI should allow CORS from your frontend.</small>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

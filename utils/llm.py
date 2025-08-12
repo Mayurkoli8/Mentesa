@@ -1,49 +1,34 @@
-# utils/llm.py
-# utils/llm.py
-import requests
+import os
+from utils import bot_ops
+import google.generativeai as genai
 
-MISTRAL_URL = "http://localhost:11434/api/generate"
+# --- Gemini API Setup ---
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-def generate_bot_config_mistral(prompt: str) -> str:
-    instructions = """
-You are a JSON generator. Based on the user’s request, return *only* a valid JSON object, matching exactly this schema:
+MODEL_NAME = "gemini-pro"  # You can change to "gemini-1.5-pro" if needed
 
-{
-  "name": string,
-  "personality": {
-    "role": string,
-    "traits": [ string, ... ],    
-    "communication_style": [ string, ... ]
-  }
-}
+def chat_with_bot(bot_id, user_message):
+    """
+    Generate a bot reply using its personality and Gemini Pro.
+    """
+    # Load bot details
+    bot = bot_ops.get_bot(bot_id)
+    if not bot:
+        return "❌ Bot not found."
 
-* Use double quotes for all keys and strings.  
-* Do NOT include any extra fields or comments.  
-* Do NOT wrap in markdown or code fences.  
-* Return nothing but the JSON.  
-"""
+    personality = bot.get("personality", "You are a helpful AI assistant.")
+    
+    # Prepare prompt
+    prompt = f"""
+    You are {bot['name']}.
+    Personality: {personality}
 
-    payload = {
-        "model": "mistral",
-        "prompt": f"{instructions}\nUser request: {prompt}\nJSON:",
-        "stream": False
-    }
-    r = requests.post(MISTRAL_URL, json=payload)
-    r.raise_for_status()
-    return r.json()["response"]
+    The user says: {user_message}
+    Respond in character.
+    """
 
-
-def chat_with_mistral(message: str, personality: str):
     try:
-        url = "http://localhost:11434/api/generate"
-        prompt = f"You are a helpful chatbot with this personality: {personality}\nUser: {message}\nBot:"
-        payload = {
-            "model": "mistral",
-            "prompt": prompt,
-            "stream": False
-        }
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        return response.json().get("response", "...")
+        response = genai.GenerativeModel(MODEL_NAME).generate_content(prompt)
+        return response.text.strip()
     except Exception as e:
-        return f"[Chat Error] {str(e)}"
+        return f"⚠️ Error generating response: {e}"

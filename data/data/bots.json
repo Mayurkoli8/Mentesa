@@ -1,0 +1,23 @@
+{
+  "910d6373-f477-49de-9aa5-93f419a6ca69": {
+    "id": "910d6373-f477-49de-9aa5-93f419a6ca69",
+    "name": "Test Bot",
+    "personality": "",
+    "config": {},
+    "created_at": "2025-08-12T18:30:21.893089"
+  },
+  "b9432846-5169-483a-afd6-c0deda432197": {
+    "id": "b9432846-5169-483a-afd6-c0deda432197",
+    "name": "Test Bot",
+    "personality": "",
+    "config": {},
+    "created_at": "2025-08-12T18:30:25.260631"
+  },
+  "c19c792e-beb3-4258-adba-92a6de9482b0": {
+    "id": "c19c792e-beb3-4258-adba-92a6de9482b0",
+    "name": "Carboi",
+    "personality": "knows everything about cars",
+    "config": {},
+    "created_at": "2025-08-12T18:39:54.546328"
+  }
+}
