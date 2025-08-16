@@ -3,6 +3,7 @@ import uuid
 import json
 import sys
 import os
+import requests
 
 # Add root dir so utils/ can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -67,42 +68,45 @@ def normalize_history(raw_history):
                 normalized.append({"role": "bot", "content": turn["bot"]})
     return normalized
 
+# ---------------- CHAT INTERFACE ----------------
 def chat_interface():
     st.header("💬 Chat with Your Bot")
     st.markdown("---")
 
-    bots = load_bots()
+    bots = load_bots()  # list of dicts
     if not bots:
         st.info("No bots available — create one above.")
         return
 
-    bot_items = list(bots.items())
-    bot_id, bot_info = st.selectbox(
+    # Create list of tuples (label, bot_id) for selectbox
+    bot_items = [(f"{b['name']} ({b['id'][:6]})", b['id']) for b in bots]
+
+    selected_label, selected_bot_id = st.selectbox(
         "Choose a bot",
         options=bot_items,
-        format_func=lambda x: f"{x[1]['name']} ({x[0][:6]})",
-        key="chat_select",
+        format_func=lambda x: x[0],
+        key="chat_selectbox"
     )
+
+    # Fetch selected bot info
+    selected_bot_info = next(b for b in bots if b['id'] == selected_bot_id)
+
     st.markdown("---")
 
-    # load & normalize once per bot
-    if "chat_bot_id" not in st.session_state or st.session_state.chat_bot_id != bot_id:
-        st.session_state.chat_bot_id = bot_id
-        raw_history = load_chat_history(bot_id)
+    # Load & normalize chat history once per bot
+    if "chat_bot_id" not in st.session_state or st.session_state.chat_bot_id != selected_bot_id:
+        st.session_state.chat_bot_id = selected_bot_id
+        raw_history = load_chat_history(selected_bot_id)
         st.session_state.history = normalize_history(raw_history)
 
     history = st.session_state.history
 
-    # typing flag default
     if "typing" not in st.session_state:
         st.session_state.typing = False
 
-    # Prepare the JSON that we'll embed in the iframe
-    # Ensure it's in proper role/content format
+    # Iframe HTML (unchanged UI)
     history_json = json.dumps(history)
     typing_json = json.dumps(bool(st.session_state.typing))
-
-    # Build the iframe HTML which will render messages and reliably scroll
     iframe_html = f"""
     <!doctype html>
     <html>
@@ -116,7 +120,7 @@ def chat_interface():
             padding: 12px;
             width: 100%;
             box-sizing: border-box;
-            background: transaparent;
+            background: transparent;
         }}
         .msg-user {{
             background: #0084ff;
@@ -157,11 +161,9 @@ def chat_interface():
     </head>
     <body>
       <div id="chat-scroll-box" class="chat-box"></div>
-
       <script>
         const history = {history_json};
         const typing = {typing_json};
-
         function renderChat() {{
             const box = document.getElementById('chat-scroll-box');
             box.innerHTML = "";
@@ -169,7 +171,6 @@ def chat_interface():
                 const turn = history[i];
                 const div = document.createElement('div');
                 div.className = turn.role === 'user' ? 'msg-user' : 'msg-bot';
-                // Use textContent so it's safe; CSS pre-wrap preserves newlines
                 div.textContent = (turn.role === 'user' ? '🧑 ' : '🤖 ') + turn.content;
                 box.appendChild(div);
             }}
@@ -179,59 +180,47 @@ def chat_interface():
                 t.textContent = '🤖 typing…';
                 box.appendChild(t);
             }}
-            // Scroll to bottom multiple times to be robust
             box.scrollTop = box.scrollHeight;
             setTimeout(()=>{{ box.scrollTop = box.scrollHeight; }}, 50);
             setTimeout(()=>{{ box.scrollTop = box.scrollHeight; }}, 300);
         }}
-
-        // Wait a tick so the element is surely painted, then render
         setTimeout(renderChat, 10);
       </script>
     </body>
     </html>
     """
-
-    # Render chat in an iframe. Height slightly larger than chat-box to accommodate padding.
     components_html(iframe_html, height=460, width=1200, scrolling=True)
 
-    # User input area below the iframe
+    # User input
     user_input = st.chat_input("Type your message…")
-
     if user_input:
-        # append user message immediately and save
         history.append({"role": "user", "content": user_input})
-        save_chat_history(bot_id, history)
+        save_chat_history(selected_bot_id, history)
         st.session_state.history = history
-
-        # set typing and rerun to render typing bubble inside iframe
         st.session_state.typing = True
         st.rerun()
 
-    # If typing flag is set, generate bot reply (this runs after the rerun that showed typing)
     if st.session_state.typing:
-        reply = chat_with_gemini(history[-1]["content"], bot_info["personality"])
+        reply = chat_with_gemini(history[-1]["content"], selected_bot_info["personality"])
         history.append({"role": "bot", "content": reply})
-        save_chat_history(bot_id, history)
+        save_chat_history(selected_bot_id, history)
         st.session_state.history = history
         st.session_state.typing = False
         st.rerun()
 
 # ---------------- BOT MANAGEMENT ----------------
+BACKEND="http://127.0.0.1:8000"
 def bot_management_ui():
     st.subheader("🛠️ Manage Your Bots")
     bots = load_bots()
     if not bots:
-        st.info("No bots to manage — create one first.")
+        st.info("No bots available — create one first.")
         return
 
-    bot_options = {
-        f"{info['name']} ({bot_id[:6]})": bot_id
-        for bot_id, info in bots.items()
-    }
-    selected_label = st.selectbox("Select a bot to manage:", list(bot_options.keys()))
+    bot_options = {f"{b['name']} ({b['id'][:6]})": b['id'] for b in bots}
+    selected_label = st.selectbox("Choose a bot", list(bot_options.keys()), key="manage_select")
     selected_bot_id = bot_options[selected_label]
-    selected_bot_info = bots[selected_bot_id]
+    selected_bot_info = next(b for b in bots if b['id'] == selected_bot_id)
 
     col1, col2, col3, col4 = st.columns([2, 3, 1, 1])
 
@@ -263,6 +252,44 @@ def bot_management_ui():
         delete_bot(selected_bot_id)
         st.success("Bot deleted!")
         st.rerun()
+
+    # Embed snippet
+    st.markdown("---")
+    st.write("📄 **Embed this bot on your website:**")
+    try:
+        resp = requests.get(f"{BACKEND}/bots/{selected_bot_id}/apikey")
+        if resp.status_code == 200:
+            api_key = resp.json().get("api_key")
+            embed_code = f'<script src="{BACKEND}/embed.js" data-api-key="{api_key}"></script>'
+            st.code(embed_code, language="html")
+
+            if st.button(f"📋 Copy snippet for {selected_bot_info['name']}", key=f"copy_{selected_bot_id}"):
+                st.code(embed_code, language="html")
+                st.success("Embed snippet copied to clipboard!")
+                st.markdown("---")
+                st.write("📄 **Embed this bot on your website:**")
+
+                # Show snippet
+                st.code(embed_code, language="html")
+
+                # Instructions
+                st.markdown("""
+                **How to use this snippet:**
+
+                1. Copy the code above (click inside the box and use Ctrl+C or your preferred copy method).
+                2. Open your website’s HTML(index.html) file.
+                3. Paste the snippet **before the closing `</body>` tag**.
+                4. Save your file and refresh your website.
+                5. The Mentesa chat widget should appear in the bottom-right corner.
+                6. Users can now chat with your bot directly on your site!
+
+                > ⚠️ Make sure your website allows external scripts if you host the backend separately.
+                """)
+
+        else:
+            st.warning("Could not fetch API key for this bot.")
+    except Exception as e:
+        st.error(f"Error fetching API key: {e}")
 
 # ---------------- MAIN APP ----------------
 def main():
