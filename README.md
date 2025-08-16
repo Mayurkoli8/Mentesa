@@ -1,3 +1,9 @@
+**THIS VERSION IS TO SEPARETE BACKEND AND FRONTEND(STREAMLIT) BUT NOT COMPLETE(16/08/2025)**
+
+
+
+
+
 # Mentesa: A No-Code AI Bot Creation Platform for Everyone
 
 **Mentesa** is an innovative no-code platform that enables users to create intelligent, personalized AI agents using just natural language. Powered by open-source LLMs like Mistral and Mixtral (via Ollama), Mentesa supports RAG, file-based learning, memory, and fine-tuning — all without writing a single line of code.

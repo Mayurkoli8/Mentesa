@@ -1,23 +1,24 @@
 import os
 import json
 import google.generativeai as genai
-import streamlit as st
 
 # Load API key
-api_key = os.environ.get("GEMINI_API_KEY")
+api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
-    try:
-        api_key = st.secrets["GEMINI_API_KEY"]
-    except Exception:
-        raise ValueError("Gemini API key not found in environment or Streamlit secrets.")
+    raise ValueError("Gemini API key not found in environment variables.")
 
 # Configure Gemini client
 genai.configure(api_key=api_key)
 
+# Default model
 MODEL_NAME = "models/gemini-2.5-pro"
 model = genai.GenerativeModel(model_name=MODEL_NAME, generation_config={"temperature": 0.7})
 
-def generate_bot_config_gemini(prompt):
+# ---------------- Bot Config Generation ----------------
+def generate_bot_config(prompt: str) -> dict:
+    """
+    Generate a bot configuration (name, personality, settings) using Gemini.
+    """
     instruction = f"""
     You are to output ONLY a valid JSON object.
     No explanations, no markdown formatting, no extra text.
@@ -32,73 +33,69 @@ def generate_bot_config_gemini(prompt):
 
     try:
         response = model.generate_content(instruction)
+        text = getattr(response, "text", None)
 
-        # Extract text from response
-        try:
-            text = response.text
-        except ValueError:
-            # If direct text access fails, try to get it from parts
-            try:
-                parts = []
-                for part in response.parts:
-                    if hasattr(part, "text"):
-                        parts.append(part.text)
-                text = " ".join(parts).strip()
-                if not text:
-                    raise RuntimeError("No text found in response parts")
-            except Exception as e:
-                raise RuntimeError(f"Failed to extract text from response: {str(e)}")
-        
+        # If direct text extraction fails, try parts
+        if not text:
+            parts = [part.text for part in getattr(response, "parts", []) if hasattr(part, "text")]
+            text = " ".join(parts).strip()
+
         if not text:
             raise RuntimeError("Gemini returned empty response.")
 
-        # Remove markdown fences
+        # Remove markdown/code fences
         if text.startswith("```"):
             text = text.strip("` \n")
             if text.lower().startswith("json"):
                 text = text[4:].strip()
 
-        # Parse JSON
-        try:
-            cfg = json.loads(text)
-        except json.JSONDecodeError as e:
-            raise RuntimeError(f"[Generation Error] Gemini returned invalid JSON:\n{text}") from e
+        cfg = json.loads(text)
 
-        # Validate JSON
+        # Basic validation
         if not isinstance(cfg, dict) or "name" not in cfg or "personality" not in cfg:
-            raise RuntimeError(f"[Generation Error] Missing keys in output: {cfg}")
+            raise RuntimeError(f"Missing required keys in output: {cfg}")
 
         return cfg
 
     except Exception as e:
         raise RuntimeError(f"[Generation Error] {e}")
 
-def chat_with_gemini(message: str, personality: str) -> str:
-    prompt = (
-        f"You are a helpful chatbot with this personality:\n"
-        f"{personality}\nUser: {message}\nBot:"
-    )
-    try:
-        response = model.generate_content(prompt)
+# ---------------- Chat ----------------
+# ---------------- Chat ----------------
+def chat_with_llm(bot_config: dict, message: str, history: list = None) -> str:
+    """
+    Chat with Gemini using a bot's personality + chat history.
+    """
+    if history is None:
+        history = []
 
-        # Extract text from response
-        try:
-            text = response.text
-            return text.strip()
-        except ValueError:
-            # If direct text access fails, try to get it from parts
-            try:
-                parts = []
-                for part in response.parts:
-                    if hasattr(part, "text"):
-                        parts.append(part.text)
-                text = " ".join(parts).strip()
-                if text:
-                    return text
-            except Exception:
-                pass
-            
-        return "[Chat Error] Failed to get response from Gemini"
+    # System prompt = bot personality
+    system_prompt = f"You are {bot_config['name']}, a chatbot with this personality:\n{bot_config.get('personality', 'helpful')}.\nAlways stay in character."
+
+    # Build conversation for Gemini
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend(history)  # history = [{"role": "user", "content": ...}, {"role": "bot", "content": ...}]
+    messages.append({"role": "user", "content": message})
+
+    # Convert to plain text input since Gemini may not support role dicts directly
+    formatted_input = []
+    for msg in messages:
+        if msg["role"] == "system":
+            formatted_input.append(f"[System]\n{msg['content']}\n")
+        elif msg["role"] == "user":
+            formatted_input.append(f"User: {msg['content']}\n")
+        else:
+            formatted_input.append(f"{bot_config['name']}: {msg['content']}\n")
+
+    try:
+        response = model.generate_content("".join(formatted_input))
+        text = getattr(response, "text", None)
+
+        if not text:
+            parts = [part.text for part in getattr(response, "parts", []) if hasattr(part, "text")]
+            text = " ".join(parts).strip()
+
+        return text.strip() if text else "[Chat Error] Empty response"
 
     except Exception as e:
         return f"[Chat Error] {str(e)}"
