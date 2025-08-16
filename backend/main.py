@@ -36,22 +36,24 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 if not BOTS_FILE.exists():
     BOTS_FILE.write_text("[]", encoding="utf-8")
 
-def load_bots() -> List[Dict[str, Any]]:
-    try:
-        data = json.loads(BOTS_FILE.read_text(encoding="utf-8"))
-        # If stored as dict keyed by ID, convert to list
-        if isinstance(data, dict):
-            return [
-                {**v, "id": k} for k, v in data.items()
-            ]
-        return data
-    except Exception:
-        return []
+from utils.firebase_config import db
 
-def save_bots(bots: List[Dict[str, Any]]) -> None:
-    BOTS_FILE.write_text(json.dumps(bots, indent=2), encoding="utf-8")
+def load_bots():
+    bots_ref = db.collection("bots")
+    docs = bots_ref.stream()
+    bots = []
+    for doc in docs:
+        bot = doc.to_dict()
+        bot["id"] = doc.id
+        bots.append(bot)
+    return bots
 
-bots: List[Dict[str, Any]] = load_bots()
+
+def save_bot(bot):
+    bot_id = bot.get("id")
+    if not bot_id:
+        raise ValueError("Bot must have an 'id' field")
+    db.collection("bots").document(bot_id).set(bot)
 
 # -------------------------------------------------
 # Config: Gemini

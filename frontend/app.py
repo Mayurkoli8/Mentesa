@@ -45,34 +45,17 @@ def create_and_save_bot():
             st.error(f"Failed to generate bot: {cfg.get('error', 'No data returned')}")
             return
 
-        # Load existing bots
-        bots = load_bots()
-        if isinstance(bots, list):
-            bots_dict = {b["id"]: b for b in bots}
-        else:
-            bots_dict = bots
-
-        # Generate new bot ID and API key
         bot_id = str(uuid.uuid4())
-        api_key = str(uuid.uuid4())
-
-        # Prepare bot entry
-        bot_entry = {
+        bot = {
             "id": bot_id,
             "name": cfg["name"],
             "personality": cfg["personality"],
             "settings": cfg.get("settings", {}),
-            "api_key": api_key
         }
 
-        # Save to dictionary
-        bots_dict[bot_id] = bot_entry
-
-        # Persist bots
-        save_bots(list(bots_dict.values()))  # save as list if your code expects list
+        save_bot(bot)
 
         st.success(f"✅ Bot '{cfg['name']}' created and saved!")
-        st.info("You can now manage this bot and fetch its API key for embedding.")
 
 # ---------------- CHAT INTERFACE ----------------
 def normalize_history(raw_history):
@@ -229,9 +212,21 @@ def chat_interface():
 
 # ---------------- BOT MANAGEMENT ----------------
 BACKEND="https://mentesa-2kf8.onrender.com"
+from utils.firebase_config import db
+import pyperclip
+
 def bot_management_ui():
     st.subheader("🛠️ Manage Your Bots")
-    bots = load_bots()
+    
+    # Fetch bots from Firebase
+    bots_ref = db.collection("bots")
+    docs = bots_ref.stream()
+    bots = []
+    for doc in docs:
+        bot = doc.to_dict()
+        bot["id"] = doc.id
+        bots.append(bot)
+    
     if not bots:
         st.info("No bots available — create one first.")
         return
@@ -247,70 +242,56 @@ def bot_management_ui():
 
     new_name = col1.text_input("Name", value=selected_bot_info['name'], key=f"name_{selected_bot_id}")
     if col1.button("✏️ Rename", key=f"rename_{selected_bot_id}"):
-        rename_bot(selected_bot_id, new_name)
+        db.collection("bots").document(selected_bot_id).update({"name": new_name})
         st.success("Renamed!")
-        st.rerun()
+        st.experimental_rerun()
 
     new_persona = col2.text_area("Personality", value=selected_bot_info['personality'], key=f"persona_{selected_bot_id}", height=80)
     if col2.button("✏️ Update", key=f"update_{selected_bot_id}"):
-        update_personality(selected_bot_id, new_persona)
+        db.collection("bots").document(selected_bot_id).update({"personality": new_persona})
         st.success("Personality updated!")
-        st.rerun()
+        st.experimental_rerun()
 
     if col3.button("🧹 Clear Chat", key=f"manage_clear_{selected_bot_id}"):
-        clear_chat_history(selected_bot_id)
+        db.collection("chat_history").document(selected_bot_id).delete()
         st.success("Chat history cleared!")
-        st.rerun()
+        st.experimental_rerun()
 
     if col4.button("🗑️ Delete", key=f"delete_{selected_bot_id}"):
-        delete_bot(selected_bot_id)
+        db.collection("bots").document(selected_bot_id).delete()
         st.success("Bot deleted!")
-        st.rerun()
+        st.experimental_rerun()
 
     # --- Embed snippet section ---
     st.markdown("---")
     st.write("📄 **Embed this bot on your website:**")
 
-    # Initialize session_state cache for API keys
-    if "api_keys" not in st.session_state:
-        st.session_state.api_keys = {}
-
-    if selected_bot_id not in st.session_state.api_keys:
-        try:
-            resp = requests.get(f"{BACKEND}/bots/{selected_bot_id}/apikey")
-            if resp.status_code == 200:
-                st.session_state.api_keys[selected_bot_id] = resp.json().get("api_key")
-            else:
-                st.session_state.api_keys[selected_bot_id] = None
-        except Exception:
-            st.session_state.api_keys[selected_bot_id] = None
-
-    api_key = st.session_state.api_keys.get(selected_bot_id)
+    # Get API key from Firestore
+    api_doc = db.collection("bot_api_keys").document(selected_bot_id).get()
+    api_key = api_doc.to_dict().get("api_key") if api_doc.exists else None
 
     if api_key:
-        embed_code = f'<script src="{BACKEND}/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
+        embed_code = f'<script src="{BACKEND}/static/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
         st.code(embed_code, language="html")
 
         if st.button(f"📋 Copy snippet for {selected_bot_info['name']}", key=f"copy_{selected_bot_id}"):
             try:
-                import pyperclip
                 pyperclip.copy(embed_code)
                 st.success("Embed snippet copied to clipboard!")
             except Exception:
                 st.warning("Could not copy to clipboard. Copy manually.")
 
-        # Show instructions below snippet
         st.markdown(f"""
         **How to use this snippet:**
 
-        1. Copy the code above (click inside the box and use Ctrl+C or your preferred copy method).
+        1. Copy the code above.
         2. Open your website’s HTML (index.html) file.
         3. Paste the snippet **before the closing `</body>` tag**.
-        4. Save your file and refresh your website.
-        5. The chat widget for **{selected_bot_info['name']}** will appear in the bottom-right corner.
+        4. Save and refresh your website.
+        5. The chat widget for **{selected_bot_info['name']}** will appear.
         6. Users can now chat with your bot directly on your site!
 
-        > ⚠️ Make sure your website allows external scripts if you host the backend separately.
+        > ⚠️ Ensure your website allows external scripts if hosting backend separately.
         """)
     else:
         st.warning("Could not fetch API key for this bot.")
