@@ -218,27 +218,22 @@ def bot_management_ui():
         st.info("No bots available — create one first.")
         return
 
+    # Select bot
     bot_options = {f"{b['name']} ({b['id'][:6]})": b['id'] for b in bots}
     selected_label = st.selectbox("Choose a bot", list(bot_options.keys()), key="manage_select")
     selected_bot_id = bot_options[selected_label]
     selected_bot_info = next(b for b in bots if b['id'] == selected_bot_id)
 
+    # --- Bot management columns ---
     col1, col2, col3, col4 = st.columns([2, 3, 1, 1])
 
-    new_name = col1.text_input(
-        "Name", value=selected_bot_info['name'], key=f"name_{selected_bot_id}"
-    )
+    new_name = col1.text_input("Name", value=selected_bot_info['name'], key=f"name_{selected_bot_id}")
     if col1.button("✏️ Rename", key=f"rename_{selected_bot_id}"):
         rename_bot(selected_bot_id, new_name)
         st.success("Renamed!")
         st.rerun()
 
-    new_persona = col2.text_area(
-        "Personality",
-        value=selected_bot_info['personality'],
-        key=f"persona_{selected_bot_id}",
-        height=80,
-    )
+    new_persona = col2.text_area("Personality", value=selected_bot_info['personality'], key=f"persona_{selected_bot_id}", height=80)
     if col2.button("✏️ Update", key=f"update_{selected_bot_id}"):
         update_personality(selected_bot_id, new_persona)
         st.success("Personality updated!")
@@ -254,38 +249,37 @@ def bot_management_ui():
         st.success("Bot deleted!")
         st.rerun()
 
-    # Embed snippet
+    # --- Embed snippet section ---
     st.markdown("---")
     st.write("📄 **Embed this bot on your website:**")
+
     try:
         resp = requests.get(f"{BACKEND}/bots/{selected_bot_id}/apikey")
         if resp.status_code == 200:
             api_key = resp.json().get("api_key")
-            embed_code = f'<script src="{BACKEND}/embed.js" data-api-key="{api_key}"></script>'
+
+            # Include bot name in the embed snippet
+            embed_code = f'<script src="{BACKEND}/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
+
+            # Show snippet
             st.code(embed_code, language="html")
 
             if st.button(f"📋 Copy snippet for {selected_bot_info['name']}", key=f"copy_{selected_bot_id}"):
-                st.code(embed_code, language="html")
                 st.success("Embed snippet copied to clipboard!")
-                st.markdown("---")
-                st.write("📄 **Embed this bot on your website:**")
 
-                # Show snippet
-                st.code(embed_code, language="html")
+            # Instructions
+            st.markdown("""
+            **How to use this snippet:**
 
-                # Instructions
-                st.markdown("""
-                **How to use this snippet:**
+            1. Copy the code above (click inside the box and use Ctrl+C or your preferred copy method).
+            2. Open your website’s HTML (index.html) file.
+            3. Paste the snippet **before the closing `</body>` tag**.
+            4. Save your file and refresh your website.
+            5. The Mentesa chat widget will appear in the bottom-right corner.
+            6. Users can now chat with your bot directly on your site!
 
-                1. Copy the code above (click inside the box and use Ctrl+C or your preferred copy method).
-                2. Open your website’s HTML(index.html) file.
-                3. Paste the snippet **before the closing `</body>` tag**.
-                4. Save your file and refresh your website.
-                5. The Mentesa chat widget should appear in the bottom-right corner.
-                6. Users can now chat with your bot directly on your site!
-
-                > ⚠️ Make sure your website allows external scripts if you host the backend separately.
-                """)
+            > ⚠️ Make sure your website allows external scripts if you host the backend separately.
+            """)
 
         else:
             st.warning("Could not fetch API key for this bot.")
