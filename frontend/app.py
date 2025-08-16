@@ -254,38 +254,50 @@ def bot_management_ui():
     st.markdown("---")
     st.write("📄 **Embed this bot on your website:**")
 
-    try:
-        resp = requests.get(f"{BACKEND}/bots/{selected_bot_id}/apikey")
-        if resp.status_code == 200:
-            api_key = resp.json().get("api_key")
+    # Initialize session_state cache for API keys
+    if "api_keys" not in st.session_state:
+        st.session_state.api_keys = {}
 
-            # Include bot name in the embed snippet
-            embed_code = f'<script src="{BACKEND}/static/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
+    if selected_bot_id not in st.session_state.api_keys:
+        try:
+            resp = requests.get(f"{BACKEND}/bots/{selected_bot_id}/apikey")
+            if resp.status_code == 200:
+                st.session_state.api_keys[selected_bot_id] = resp.json().get("api_key")
+            else:
+                st.session_state.api_keys[selected_bot_id] = None
+        except Exception:
+            st.session_state.api_keys[selected_bot_id] = None
 
-            # Show snippet
-            st.code(embed_code, language="html")
+    api_key = st.session_state.api_keys.get(selected_bot_id)
 
-            if st.button(f"📋 Copy snippet for {selected_bot_info['name']}", key=f"copy_{selected_bot_id}"):
+    if api_key:
+        embed_code = f'<script src="{BACKEND}/static/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
+        st.code(embed_code, language="html")
+
+        if st.button(f"📋 Copy snippet for {selected_bot_info['name']}", key=f"copy_{selected_bot_id}"):
+            try:
+                import pyperclip
+                pyperclip.copy(embed_code)
                 st.success("Embed snippet copied to clipboard!")
+            except Exception:
+                st.warning("Could not copy to clipboard. Copy manually.")
 
-            # Instructions
-            st.markdown("""
-            **How to use this snippet:**
+        # Show instructions below snippet
+        st.markdown(f"""
+        **How to use this snippet:**
 
-            1. Copy the code above (click inside the box and use Ctrl+C or your preferred copy method).
-            2. Open your website’s HTML (index.html) file.
-            3. Paste the snippet **before the closing `</body>` tag**.
-            4. Save your file and refresh your website.
-            5. The Mentesa chat widget will appear in the bottom-right corner.
-            6. Users can now chat with your bot directly on your site!
+        1. Copy the code above (click inside the box and use Ctrl+C or your preferred copy method).
+        2. Open your website’s HTML (index.html) file.
+        3. Paste the snippet **before the closing `</body>` tag**.
+        4. Save your file and refresh your website.
+        5. The chat widget for **{selected_bot_info['name']}** will appear in the bottom-right corner.
+        6. Users can now chat with your bot directly on your site!
 
-            > ⚠️ Make sure your website allows external scripts if you host the backend separately.
-            """)
+        > ⚠️ Make sure your website allows external scripts if you host the backend separately.
+        """)
+    else:
+        st.warning("Could not fetch API key for this bot.")
 
-        else:
-            st.warning("Could not fetch API key for this bot.")
-    except Exception as e:
-        st.error(f"Error fetching API key: {e}")
 
 # ---------------- MAIN APP ----------------
 def main():
