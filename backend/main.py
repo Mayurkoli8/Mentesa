@@ -19,8 +19,11 @@ from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
 
+# Absolute path to 'static' folder
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+static_path = os.path.join(BASE_DIR, "static")
+
+app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 
 # -------------------------------------------------
