@@ -55,8 +55,14 @@ api_key = str(uuid.uuid4())
 db.collection("bot_api_keys").document(bot_id).set({"api_key": api_key})
 
 def load_bots():
+    # Load bots from Firebase
     bots_ref = db.collection("bots").stream()
-    return [doc.to_dict() for doc in bots_ref]
+    bots = []
+    for doc in bots_ref:
+        data = doc.to_dict()
+        data['id'] = doc.id   # add document ID
+        bots.append(data)
+    
 
 
 def save_bots(bots):
