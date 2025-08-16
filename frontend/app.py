@@ -52,23 +52,22 @@ def create_and_save_bot():
             st.error(f"Failed to generate bot: {cfg.get('error', 'No data returned')}")
             return
 
-        # Create bot in Firebase
-        bot_ref = db.collection("bots").document()  # Auto-generate ID
-        bot_id = bot_ref.id
+        # Generate bot ID and API key
+        bot_id = str(uuid.uuid4())
+        api_key = "mentesa_sk_" + str(uuid.uuid4())  # format like your example
+
+        # Save bot with desired structure
         bot_data = {
+            "id": bot_id,
             "name": cfg["name"],
             "personality": cfg["personality"],
-            "settings": cfg.get("settings", {}),
+            "api_key": api_key
         }
-        bot_ref.set(bot_data)
 
-        # Generate and save API key for this bot
-        api_key = str(uuid.uuid4())
-        db.collection("bot_api_keys").document(bot_id).set({"api_key": api_key})
+        db.collection("bots").document(bot_id).set(bot_data)
 
         st.success(f"✅ Bot '{cfg['name']}' created and saved!")
         st.info("You can now manage it in the **Manage Bots** tab and embed it on your website.")
-
 # ---------------- CHAT INTERFACE ----------------
 def normalize_history(raw_history):
     """Convert old {'user':'', 'bot':''} into [{'role','content'}, ...]."""
