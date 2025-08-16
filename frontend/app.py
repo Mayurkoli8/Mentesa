@@ -64,7 +64,7 @@ def create_and_save_bot():
         db.collection("bots").document(bot_id).set(bot_data)
 
         st.success(f"✅ Bot '{cfg['name']}' created and saved!")
-        st.experimental_rerun()  # Refresh to show the new bot
+        st.rerun()  # Refresh to show the new bot
 
 # ---------------- CHAT INTERFACE ----------------
 def normalize_history(raw_history):
@@ -249,7 +249,7 @@ def bot_management_ui():
     if col1.button("✏️ Rename", key=f"rename_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).update({"name": new_name})
         st.success("Renamed!")
-        st.experimental_rerun()
+        st.rerun()
 
     new_persona = col2.text_area(
         "Personality", value=selected_bot_info['personality'], key=f"persona_{selected_bot_id}", height=80
@@ -257,17 +257,17 @@ def bot_management_ui():
     if col2.button("✏️ Update", key=f"update_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).update({"personality": new_persona})
         st.success("Personality updated!")
-        st.experimental_rerun()
+        st.rerun()
 
     if col3.button("🧹 Clear Chat", key=f"manage_clear_{selected_bot_id}"):
         # Optional: Implement chat clearing in Firestore
         st.success("Chat history cleared!")
-        st.experimental_rerun()
+        st.rerun()
 
     if col4.button("🗑️ Delete", key=f"delete_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).delete()
         st.success("Bot deleted!")
-        st.experimental_rerun()
+        st.rerun()
 
     # --- Embed snippet ---
     st.markdown("---")
