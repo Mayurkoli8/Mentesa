@@ -271,7 +271,7 @@ def bot_management_ui():
     api_key = st.session_state.api_keys.get(selected_bot_id)
 
     if api_key:
-        embed_code = f'<script src="{BACKEND}/static/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
+        embed_code = f'<script src="{BACKEND}/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
         st.code(embed_code, language="html")
 
         if st.button(f"📋 Copy snippet for {selected_bot_info['name']}", key=f"copy_{selected_bot_id}"):
