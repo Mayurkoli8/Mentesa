@@ -223,7 +223,6 @@ def chat_interface():
 # ---------------- BOT MANAGEMENT ----------------
 BACKEND="https://mentesa-2kf8.onrender.com"
 from utils.firebase_config import db
-import pyperclip
 
 def bot_management_ui():
     st.subheader("🛠️ Manage Your Bots")
@@ -286,7 +285,7 @@ def bot_management_ui():
 
         if st.button(f"📋 Copy snippet for {selected_bot_info['name']}", key=f"copy_{selected_bot_id}"):
             try:
-                pyperclip.copy(embed_code)
+                st.code(embed_code)
                 st.success("Embed snippet copied to clipboard!")
             except Exception:
                 st.warning("Could not copy to clipboard. Copy manually.")
