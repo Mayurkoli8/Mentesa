@@ -15,6 +15,12 @@ from pydantic import BaseModel, Field
 import google.generativeai as genai
 from dotenv import load_dotenv
 
+from fastapi.staticfiles import StaticFiles
+
+app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
 # -------------------------------------------------
 # Paths & persistence
 # -------------------------------------------------
