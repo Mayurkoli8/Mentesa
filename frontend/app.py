@@ -225,13 +225,16 @@ BACKEND="https://mentesa-2kf8.onrender.com"
 def bot_management_ui():
     st.subheader("🛠️ Manage Your Bots")
 
-    # Load bots from Firebase
-    bots_ref = db.collection("bots").stream()
-    bots = []
-    for doc in bots_ref:
-        data = doc.to_dict()
-        data['id'] = doc.id   # Add document ID
-        bots.append(data)
+    # Fetch bots from Firebase
+    try:
+        bots_ref = db.collection("bots").stream()
+        bots = []
+        for doc in bots_ref:
+            bot = doc.to_dict()
+            bots.append(bot)
+    except Exception as e:
+        st.error(f"Failed to fetch bots from Firebase: {e}")
+        return
 
     if not bots:
         st.info("No bots available — create one first.")
@@ -248,41 +251,52 @@ def bot_management_ui():
 
     new_name = col1.text_input("Name", value=selected_bot_info['name'], key=f"name_{selected_bot_id}")
     if col1.button("✏️ Rename", key=f"rename_{selected_bot_id}"):
-        rename_bot(selected_bot_id, new_name)
+        db.collection("bots").document(selected_bot_id).update({"name": new_name})
         st.success("Renamed!")
-        st.rerun()
+        st.experimental_rerun()
 
     new_persona = col2.text_area("Personality", value=selected_bot_info['personality'], key=f"persona_{selected_bot_id}", height=80)
     if col2.button("✏️ Update", key=f"update_{selected_bot_id}"):
-        update_personality(selected_bot_id, new_persona)
+        db.collection("bots").document(selected_bot_id).update({"personality": new_persona})
         st.success("Personality updated!")
-        st.rerun()
+        st.experimental_rerun()
 
     if col3.button("🧹 Clear Chat", key=f"manage_clear_{selected_bot_id}"):
         clear_chat_history(selected_bot_id)
         st.success("Chat history cleared!")
-        st.rerun()
+        st.experimental_rerun()
 
     if col4.button("🗑️ Delete", key=f"delete_{selected_bot_id}"):
-        delete_bot(selected_bot_id)
+        db.collection("bots").document(selected_bot_id).delete()
         st.success("Bot deleted!")
-        st.rerun()
+        st.experimental_rerun()
 
     # --- Embed snippet section ---
     st.markdown("---")
     st.write("📄 **Embed this bot on your website:**")
 
-    try:
-        resp = requests.get(f"{BACKEND}/bots/{selected_bot_id}/apikey")
-        if resp.status_code == 200:
-            api_key = resp.json().get("api_key")
-            embed_code = f'<script src="{BACKEND}/static/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
-            st.code(embed_code, language="html")
-        else:
-            st.warning("Could not fetch API key for this bot.")
-    except Exception as e:
-        st.error(f"Error fetching API key: {e}")
-    
+    api_key = selected_bot_info.get("api_key")
+    if api_key:
+        embed_code = f'<script src="{BACKEND}/static/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
+        st.code(embed_code, language="html")
+        if st.button(f"📋 Copy snippet for {selected_bot_info['name']}", key=f"copy_{selected_bot_id}"):
+            try:
+                import pyperclip
+                pyperclip.copy(embed_code)
+                st.success("Embed snippet copied to clipboard!")
+            except Exception:
+                st.warning("Could not copy to clipboard. Copy manually.")
+
+        st.markdown(f"""
+        **How to use this snippet:**
+        1. Copy the code above.
+        2. Paste it before the closing `</body>` tag in your HTML.
+        3. Save and refresh your website.
+        4. The chat widget for **{selected_bot_info['name']}** will appear in the bottom-right corner.
+        """)
+    else:
+        st.warning("Could not fetch API key for this bot.")
+
 # ---------------- MAIN APP ----------------
 def main():
     tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots"])
