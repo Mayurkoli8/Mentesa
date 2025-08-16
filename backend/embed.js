@@ -1,124 +1,101 @@
-// (function() {
-//     // Read bot name and API key from the script tag
-//     const scriptTag = document.currentScript;
-//     const botName = scriptTag.getAttribute("data-bot-name") || "Mentesa Bot";
-//     const apiKey = scriptTag.getAttribute("data-api-key");
+document.addEventListener("DOMContentLoaded", function() {
+    const botName = document.currentScript.getAttribute("data-bot-name") || "Mentesa Bot";
+    const apiKey = document.currentScript.getAttribute("data-api-key") || "";
 
-//     // Create container
-//     const container = document.createElement("div");
-//     container.id = "mentesa-chat-widget";
-//     container.style.position = "fixed";
-//     container.style.bottom = "20px";
-//     container.style.right = "20px";
-//     container.style.width = "300px";
-//     container.style.height = "400px";
-//     container.style.border = "1px solid #ccc";
-//     container.style.borderRadius = "12px";
-//     container.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-//     container.style.backgroundColor = "#fff";
-//     container.style.display = "flex";
-//     container.style.flexDirection = "column";
-//     container.style.overflow = "hidden";
-//     container.style.zIndex = "99999";
-//     container.style.fontFamily = "Arial, sans-serif";
+    // Create main container
+    const chatBox = document.createElement("div");
+    chatBox.id = "mentesa-chat-widget";
+    chatBox.style.position = "fixed";
+    chatBox.style.bottom = "20px";
+    chatBox.style.right = "20px";
+    chatBox.style.width = "300px";
+    chatBox.style.height = "400px";
+    chatBox.style.backgroundColor = "#fff";
+    chatBox.style.border = "1px solid #ccc";
+    chatBox.style.borderRadius = "12px";
+    chatBox.style.boxShadow = "0 4px 12px rgba(0,0,0,0.3)";
+    chatBox.style.zIndex = "9999";
+    chatBox.style.display = "flex";
+    chatBox.style.flexDirection = "column";
+    chatBox.style.overflow = "hidden";
 
-//     // Header
-//     const header = document.createElement("div");
-//     header.style.backgroundColor = "#0084ff";
-//     header.style.color = "white";
-//     header.style.padding = "10px";
-//     header.style.fontWeight = "bold";
-//     header.style.textAlign = "center";
-//     header.textContent = botName;
-//     container.appendChild(header);
+    // Header
+    const header = document.createElement("div");
+    header.style.backgroundColor = "#0084ff";
+    header.style.color = "#fff";
+    header.style.padding = "10px";
+    header.style.fontWeight = "bold";
+    header.style.textAlign = "center";
+    header.textContent = botName + " (powered by Mentesa)";
+    chatBox.appendChild(header);
 
-//     // Chat area
-//     const chatArea = document.createElement("div");
-//     chatArea.style.flex = "1";
-//     chatArea.style.padding = "10px";
-//     chatArea.style.overflowY = "auto";
-//     chatArea.id = "mentesa-chat-area";
-//     container.appendChild(chatArea);
+    // Chat content
+    const chatContent = document.createElement("div");
+    chatContent.id = "mentesa-chat-content";
+    chatContent.style.flex = "1";
+    chatContent.style.padding = "10px";
+    chatContent.style.overflowY = "auto";
+    chatContent.style.backgroundColor = "#f9f9f9";
+    chatBox.appendChild(chatContent);
 
-//     // Footer input
-//     const footer = document.createElement("div");
-//     footer.style.padding = "10px";
-//     footer.style.display = "flex";
+    // Input container
+    const inputContainer = document.createElement("div");
+    inputContainer.style.display = "flex";
+    inputContainer.style.borderTop = "1px solid #ccc";
 
-//     const input = document.createElement("input");
-//     input.type = "text";
-//     input.placeholder = "Type your message…";
-//     input.style.flex = "1";
-//     input.style.padding = "8px";
-//     input.style.borderRadius = "8px";
-//     input.style.border = "1px solid #ccc";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "Type a message…";
+    input.style.flex = "1";
+    input.style.padding = "10px";
+    input.style.border = "none";
+    input.style.outline = "none";
 
-//     const sendBtn = document.createElement("button");
-//     sendBtn.textContent = "Send";
-//     sendBtn.style.marginLeft = "8px";
-//     sendBtn.style.padding = "8px 12px";
-//     sendBtn.style.backgroundColor = "#0084ff";
-//     sendBtn.style.color = "#fff";
-//     sendBtn.style.border = "none";
-//     sendBtn.style.borderRadius = "8px";
-//     sendBtn.style.cursor = "pointer";
+    const sendBtn = document.createElement("button");
+    sendBtn.textContent = "Send";
+    sendBtn.style.backgroundColor = "#0084ff";
+    sendBtn.style.color = "#fff";
+    sendBtn.style.border = "none";
+    sendBtn.style.padding = "0 15px";
+    sendBtn.style.cursor = "pointer";
 
-//     footer.appendChild(input);
-//     footer.appendChild(sendBtn);
-//     container.appendChild(footer);
+    inputContainer.appendChild(input);
+    inputContainer.appendChild(sendBtn);
+    chatBox.appendChild(inputContainer);
 
-//     // Powered by Mentesa
-//     const footerLabel = document.createElement("div");
-//     footerLabel.textContent = "Powered by Mentesa";
-//     footerLabel.style.fontSize = "10px";
-//     footerLabel.style.color = "#888";
-//     footerLabel.style.textAlign = "center";
-//     footerLabel.style.marginTop = "4px";
-//     container.appendChild(footerLabel);
+    document.body.appendChild(chatBox);
 
-//     document.body.appendChild(container);
+    // Dummy send function
+    sendBtn.addEventListener("click", function() {
+        const message = input.value.trim();
+        if (!message) return;
 
-//     // Function to append messages
-//     function appendMessage(sender, text) {
-//         const msgDiv = document.createElement("div");
-//         msgDiv.textContent = (sender === "user" ? "🧑 " : "🤖 ") + text;
-//         msgDiv.style.marginBottom = "8px";
-//         msgDiv.style.padding = "6px 10px";
-//         msgDiv.style.borderRadius = "10px";
-//         msgDiv.style.maxWidth = "80%";
-//         msgDiv.style.wordWrap = "break-word";
-//         msgDiv.style.backgroundColor = sender === "user" ? "#0084ff" : "#f1f0f0";
-//         msgDiv.style.color = sender === "user" ? "#fff" : "#000";
-//         msgDiv.style.alignSelf = sender === "user" ? "flex-end" : "flex-start";
-//         chatArea.appendChild(msgDiv);
-//         chatArea.scrollTop = chatArea.scrollHeight;
-//     }
+        const userMsg = document.createElement("div");
+        userMsg.textContent = "🧑 " + message;
+        userMsg.style.backgroundColor = "#0084ff";
+        userMsg.style.color = "#fff";
+        userMsg.style.padding = "6px 10px";
+        userMsg.style.margin = "5px 0";
+        userMsg.style.borderRadius = "10px";
+        userMsg.style.textAlign = "right";
 
-//     // Send message handler
-//     sendBtn.addEventListener("click", () => {
-//         const message = input.value.trim();
-//         if (!message) return;
-//         appendMessage("user", message);
-//         input.value = "";
+        chatContent.appendChild(userMsg);
+        chatContent.scrollTop = chatContent.scrollHeight;
+        input.value = "";
 
-//         // Call backend API for bot reply
-//         fetch(`${window.location.origin}/bots/reply`, {
-//             method: "POST",
-//             headers: {
-//                 "Content-Type": "application/json",
-//                 "Authorization": `Bearer ${apiKey}`
-//             },
-//             body: JSON.stringify({ message })
-//         })
-//         .then(res => res.json())
-//         .then(data => {
-//             if (data.reply) appendMessage("bot", data.reply);
-//         })
-//         .catch(err => appendMessage("bot", "⚠️ Error getting reply"));
-//     });
+        // Placeholder bot reply
+        const botMsg = document.createElement("div");
+        botMsg.textContent = "🤖 This is a reply from " + botName;
+        botMsg.style.backgroundColor = "#f1f0f0";
+        botMsg.style.color = "#000";
+        botMsg.style.padding = "6px 10px";
+        botMsg.style.margin = "5px 0";
+        botMsg.style.borderRadius = "10px";
+        botMsg.style.textAlign = "left";
 
-//     // Send message on Enter
-//     input.addEventListener("keypress", (e) => {
-//         if (e.key === "Enter") sendBtn.click();
-//     });
-// })();
+        setTimeout(() => {
+            chatContent.appendChild(botMsg);
+            chatContent.scrollTop = chatContent.scrollHeight;
+        }, 500);
+    });
+});
