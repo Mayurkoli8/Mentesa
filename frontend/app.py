@@ -7,6 +7,8 @@ import requests
 
 from fastapi.staticfiles import StaticFiles
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 # Add root dir so utils/ can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -262,7 +264,7 @@ def bot_management_ui():
             api_key = resp.json().get("api_key")
 
             # Include bot name in the embed snippet
-            embed_code = f'<script src="{BACKEND}/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
+            embed_code = f'<script src="{BACKEND}/static/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
 
             # Show snippet
             st.code(embed_code, language="html")
