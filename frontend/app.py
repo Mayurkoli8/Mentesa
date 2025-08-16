@@ -210,7 +210,7 @@ def chat_interface():
         st.rerun()
 
 # ---------------- BOT MANAGEMENT ----------------
-BACKEND="http://127.0.0.1:8000"
+BACKEND="https://mentesa-2kf8.onrender.com"
 def bot_management_ui():
     st.subheader("🛠️ Manage Your Bots")
     bots = load_bots()
