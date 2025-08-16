@@ -39,22 +39,20 @@ if not BOTS_FILE.exists():
 from utils.firebase_config import db
 
 def load_bots():
-    # Fetch all bots from Firebase Firestore
+    """Fetch all bots from Firestore."""
     bots_ref = db.collection("bots")
     bots = []
     for doc in bots_ref.stream():
         data = doc.to_dict()
-        data["id"] = doc.id
+        data["id"] = doc.id  # Use Firestore doc ID as bot ID
         bots.append(data)
     return bots
 
 def save_bots(bots):
-    # Save or update bots in Firestore
+    """Save or update a list of bots in Firestore."""
     for bot in bots:
-        bot_id = bot.get("id")
-        if not bot_id:
-            bot_id = str(uuid.uuid4())
-            bot["id"] = bot_id
+        bot_id = bot.get("id") or str(uuid.uuid4())
+        bot["id"] = bot_id
         db.collection("bots").document(bot_id).set(bot)
 
 # -------------------------------------------------
