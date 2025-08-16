@@ -45,17 +45,34 @@ def create_and_save_bot():
             st.error(f"Failed to generate bot: {cfg.get('error', 'No data returned')}")
             return
 
+        # Load existing bots
         bots = load_bots()
+        if isinstance(bots, list):
+            bots_dict = {b["id"]: b for b in bots}
+        else:
+            bots_dict = bots
+
+        # Generate new bot ID and API key
         bot_id = str(uuid.uuid4())
-        bots.append({
+        api_key = str(uuid.uuid4())
+
+        # Prepare bot entry
+        bot_entry = {
             "id": bot_id,
             "name": cfg["name"],
             "personality": cfg["personality"],
             "settings": cfg.get("settings", {}),
-        })
-        save_bots(bots)
+            "api_key": api_key
+        }
+
+        # Save to dictionary
+        bots_dict[bot_id] = bot_entry
+
+        # Persist bots
+        save_bots(list(bots_dict.values()))  # save as list if your code expects list
 
         st.success(f"✅ Bot '{cfg['name']}' created and saved!")
+        st.info("You can now manage this bot and fetch its API key for embedding.")
 
 # ---------------- CHAT INTERFACE ----------------
 def normalize_history(raw_history):
