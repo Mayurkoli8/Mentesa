@@ -58,7 +58,6 @@ def create_and_save_bot():
 
         # Save bot with desired structure
         bot_data = {
-            "id": bot_id,
             "name": cfg["name"],
             "personality": cfg["personality"],
             "api_key": api_key
