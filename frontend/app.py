@@ -52,18 +52,17 @@ def create_and_save_bot():
             st.error(f"Failed to generate bot: {cfg.get('error', 'No data returned')}")
             return
 
-        bot_id = str(uuid.uuid4())
-
-        # Save bot to Firebase
-        bot_doc = {
-            "id": bot_id,
+        # Create bot in Firebase
+        bot_ref = db.collection("bots").document()  # Auto-generate ID
+        bot_id = bot_ref.id
+        bot_data = {
             "name": cfg["name"],
             "personality": cfg["personality"],
             "settings": cfg.get("settings", {}),
         }
-        db.collection("bots").document(bot_id).set(bot_doc)
+        bot_ref.set(bot_data)
 
-        # Generate API key for the bot
+        # Generate and save API key for this bot
         api_key = str(uuid.uuid4())
         db.collection("bot_api_keys").document(bot_id).set({"api_key": api_key})
 
