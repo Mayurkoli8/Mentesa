@@ -14,6 +14,9 @@ from utils.llm import generate_bot_config_gemini, chat_with_gemini
 from utils.bot_ops import load_bots, save_bots, delete_bot, rename_bot, update_personality
 from utils.chat_ops import load_chat_history, save_chat_history, clear_chat_history
 from ui import apply_custom_styles, show_header 
+
+from utils.firebase_config import db
+
 # --- PAGE CONFIG ---
 st.set_page_config(
     page_title="Mentesa",
@@ -45,17 +48,24 @@ def create_and_save_bot():
             st.error(f"Failed to generate bot: {cfg.get('error', 'No data returned')}")
             return
 
+        # Generate a unique bot ID
         bot_id = str(uuid.uuid4())
-        bot = {
-            "id": bot_id,
+
+        # Save bot info to Firestore
+        bot_data = {
             "name": cfg["name"],
             "personality": cfg["personality"],
             "settings": cfg.get("settings", {}),
         }
+        db.collection("bots").document(bot_id).set(bot_data)
 
-        save_bot(bot)
+        # Generate or store API key for this bot
+        # For demo purposes, generate a random key (replace with real key generation logic if needed)
+        api_key = str(uuid.uuid4())
+        db.collection("bot_api_keys").document(bot_id).set({"api_key": api_key})
 
         st.success(f"✅ Bot '{cfg['name']}' created and saved!")
+        st.info("You can now manage it in the **Manage Bots** tab and embed it on your website.")
 
 # ---------------- CHAT INTERFACE ----------------
 def normalize_history(raw_history):
