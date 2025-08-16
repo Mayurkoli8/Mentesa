@@ -46,11 +46,12 @@ def create_and_save_bot():
 
         bots = load_bots()
         bot_id = str(uuid.uuid4())
-        bots[bot_id] = {
+        bots.append({
+            "id": bot_id,
             "name": cfg["name"],
             "personality": cfg["personality"],
-            "settings": cfg.get("settings", {})
-        }
+            "settings": cfg.get("settings", {}),
+        })
         save_bots(bots)
 
         st.success(f"✅ Bot '{cfg['name']}' created and saved!")
