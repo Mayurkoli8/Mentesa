@@ -39,21 +39,23 @@ if not BOTS_FILE.exists():
 from utils.firebase_config import db
 
 def load_bots():
+    # Fetch all bots from Firebase Firestore
     bots_ref = db.collection("bots")
-    docs = bots_ref.stream()
     bots = []
-    for doc in docs:
-        bot = doc.to_dict()
-        bot["id"] = doc.id
-        bots.append(bot)
+    for doc in bots_ref.stream():
+        data = doc.to_dict()
+        data["id"] = doc.id
+        bots.append(data)
     return bots
 
-
-def save_bot(bot):
-    bot_id = bot.get("id")
-    if not bot_id:
-        raise ValueError("Bot must have an 'id' field")
-    db.collection("bots").document(bot_id).set(bot)
+def save_bots(bots):
+    # Save or update bots in Firestore
+    for bot in bots:
+        bot_id = bot.get("id")
+        if not bot_id:
+            bot_id = str(uuid.uuid4())
+            bot["id"] = bot_id
+        db.collection("bots").document(bot_id).set(bot)
 
 # -------------------------------------------------
 # Config: Gemini
