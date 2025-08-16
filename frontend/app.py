@@ -34,6 +34,7 @@ import uuid
 import streamlit as st
 from utils.llm import generate_bot_config_gemini
 
+
 def create_and_save_bot():
     st.subheader("✨ Create Your Bot")
     st.write("Describe the bot you want, and we'll generate it with AI.")
@@ -52,21 +53,21 @@ def create_and_save_bot():
             st.error(f"Failed to generate bot: {cfg.get('error', 'No data returned')}")
             return
 
-        # Generate bot ID and API key
         bot_id = str(uuid.uuid4())
-        api_key = "mentesa_sk_" + str(uuid.uuid4())  # format like your example
+        api_key = str(uuid.uuid4())  # generate API key
 
-        # Save bot with desired structure
         bot_data = {
             "name": cfg["name"],
             "personality": cfg["personality"],
-            "api_key": api_key
+            "api_key": api_key,
+            "settings": cfg.get("settings", {})
         }
 
+        # Save to Firebase
         db.collection("bots").document(bot_id).set(bot_data)
 
         st.success(f"✅ Bot '{cfg['name']}' created and saved!")
-        st.info("You can now manage it in the **Manage Bots** tab and embed it on your website.")
+        st.info("You can now manage it in the **Manage Bots** tab and get the embed snippet.")
 # ---------------- CHAT INTERFACE ----------------
 def normalize_history(raw_history):
     """Convert old {'user':'', 'bot':''} into [{'role','content'}, ...]."""
@@ -222,25 +223,22 @@ def chat_interface():
 
 # ---------------- BOT MANAGEMENT ----------------
 BACKEND="https://mentesa-2kf8.onrender.com"
+
 def bot_management_ui():
     st.subheader("🛠️ Manage Your Bots")
 
-    # Fetch bots from Firebase
-    try:
-        bots_ref = db.collection("bots").stream()
-        bots = []
-        for doc in bots_ref:
-            bot = doc.to_dict()
-            bots.append(bot)
-    except Exception as e:
-        st.error(f"Failed to fetch bots from Firebase: {e}")
-        return
+    # Load bots from Firebase
+    bots = []
+    for doc in db.collection("bots").stream():
+        bot = doc.to_dict()
+        bot["id"] = doc.id  # add the document ID
+        bots.append(bot)
 
     if not bots:
         st.info("No bots available — create one first.")
         return
 
-    # Select bot
+    # --- Select bot ---
     bot_options = {f"{b['name']} ({b['id'][:6]})": b['id'] for b in bots}
     selected_label = st.selectbox("Choose a bot", list(bot_options.keys()), key="manage_select")
     selected_bot_id = bot_options[selected_label]
@@ -262,7 +260,7 @@ def bot_management_ui():
         st.experimental_rerun()
 
     if col3.button("🧹 Clear Chat", key=f"manage_clear_{selected_bot_id}"):
-        clear_chat_history(selected_bot_id)
+        db.collection("chat_history").document(selected_bot_id).delete()
         st.success("Chat history cleared!")
         st.experimental_rerun()
 
@@ -271,7 +269,7 @@ def bot_management_ui():
         st.success("Bot deleted!")
         st.experimental_rerun()
 
-    # --- Embed snippet section ---
+    # --- Embed snippet ---
     st.markdown("---")
     st.write("📄 **Embed this bot on your website:**")
 
@@ -279,6 +277,7 @@ def bot_management_ui():
     if api_key:
         embed_code = f'<script src="{BACKEND}/static/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
         st.code(embed_code, language="html")
+
         if st.button(f"📋 Copy snippet for {selected_bot_info['name']}", key=f"copy_{selected_bot_id}"):
             try:
                 import pyperclip
@@ -287,15 +286,21 @@ def bot_management_ui():
             except Exception:
                 st.warning("Could not copy to clipboard. Copy manually.")
 
+        # Instructions
         st.markdown(f"""
         **How to use this snippet:**
-        1. Copy the code above.
-        2. Paste it before the closing `</body>` tag in your HTML.
-        3. Save and refresh your website.
-        4. The chat widget for **{selected_bot_info['name']}** will appear in the bottom-right corner.
+
+        1. Copy the code above (click inside the box and use Ctrl+C or your preferred copy method).
+        2. Open your website’s HTML (index.html) file.
+        3. Paste the snippet **before the closing `</body>` tag**.
+        4. Save your file and refresh your website.
+        5. The chat widget for **{selected_bot_info['name']}** will appear in the bottom-right corner.
+        6. Users can now chat with your bot directly on your site!
+
+        > ⚠️ Make sure your website allows external scripts if hosting backend separately.
         """)
     else:
-        st.warning("Could not fetch API key for this bot.")
+        st.warning("API key not found for this bot.")
 
 # ---------------- MAIN APP ----------------
 def main():
