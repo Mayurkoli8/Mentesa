@@ -13,6 +13,10 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 
 from fastapi.staticfiles import StaticFiles
+
+import sys, os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from utils.firebase_config import db
 
 # -------------------------------------------------
