@@ -229,7 +229,6 @@ def chat_interface():
         reply = chat_with_gemini(
             message=history[-1]["content"],
             personality=selected_bot_info["personality"],
-            api_key=api_key
         )
         history.append({"role": "bot", "content": reply})
         st.session_state.history = history
