@@ -51,6 +51,9 @@ def load_bots():
 
 load_bots()
 
+print("Loaded bots:", [b["name"] for b in bots])
+
+
 bot_id = str(uuid.uuid4())
 bot_doc = {
     "id": bot_id,
@@ -138,6 +141,9 @@ def sanitize_public(bot: Dict[str, Any]) -> Dict[str, Any]:
 
 def find_bot_by_id(bid: str) -> Optional[Dict[str, Any]]:
     return next((b for b in bots if b.get("id") == bid), None)
+
+print("Incoming API key:", api_key)
+print("Available keys:", [b["api_key"] for b in bots])
 
 def find_bot_by_api_key(key: str) -> Optional[Dict[str, Any]]:
     return next((b for b in bots if b.get("api_key") == key), None)
@@ -273,112 +279,107 @@ def chat(req: ChatRequest, authorization: Optional[str] = Header(default=None), 
 @app.get("/embed.js", response_class=PlainTextResponse)
 def embed_js():
     js = r"""
-(function(){
-  // Identify the current script tag
-  var s = document.currentScript || (function(){
-    var scripts = document.getElementsByTagName('script');
-    return scripts[scripts.length - 1];
-  })();
+document.addEventListener("DOMContentLoaded", function() {
+    const botName = document.currentScript.getAttribute("data-bot-name") || "Mentesa Bot";
+    const apiKey = document.currentScript.getAttribute("data-api-key") || "";
 
-  var API_KEY = s.getAttribute('data-api-key');
-  var BACKEND = (new URL(s.src)).origin; // same origin as where embed.js is served
+    // Create main container
+    const chatBox = document.createElement("div");
+    chatBox.id = "mentesa-chat-widget";
+    chatBox.style.position = "fixed";
+    chatBox.style.bottom = "20px";
+    chatBox.style.right = "20px";
+    chatBox.style.width = "300px";
+    chatBox.style.height = "400px";
+    chatBox.style.backgroundColor = "#fff";
+    chatBox.style.border = "1px solid #ccc";
+    chatBox.style.borderRadius = "12px";
+    chatBox.style.boxShadow = "0 4px 12px rgba(0,0,0,0.3)";
+    chatBox.style.zIndex = "9999";
+    chatBox.style.display = "flex";
+    chatBox.style.flexDirection = "column";
+    chatBox.style.overflow = "hidden";
 
-  if(!API_KEY){
-    console.warn("[Mentesa] Missing data-api-key on embed.js script tag.");
-    return;
-  }
+    // Header
+    const header = document.createElement("div");
+    header.style.backgroundColor = "#0084ff";
+    header.style.color = "#fff";
+    header.style.padding = "10px";
+    header.style.fontWeight = "bold";
+    header.style.textAlign = "center";
+    header.textContent = botName + " (powered by Mentesa)";
+    chatBox.appendChild(header);
 
-  // Basic styles
-  var css = ".mentesa-widget{position:fixed;right:20px;bottom:20px;z-index:999999;font-family:Inter,system-ui,Arial,sans-serif}"+
-            ".mentesa-fab{width:56px;height:56px;border-radius:50%;border:none;box-shadow:0 8px 20px rgba(0,0,0,.15);cursor:pointer}"+
-            ".mentesa-panel{position:fixed;right:20px;bottom:90px;width:340px;max-height:60vh;background:#fff;border-radius:12px;box-shadow:0 20px 40px rgba(0,0,0,.2);display:none;overflow:hidden;border:1px solid #eee}"+
-            ".mentesa-header{padding:12px 14px;font-weight:600;border-bottom:1px solid #f1f1f1;background:#fafafa}"+
-            ".mentesa-body{padding:12px;overflow:auto;height:280px}"+
-            ".mentesa-msg{margin-bottom:8px;line-height:1.4}"+
-            ".mentesa-msg.user{text-align:right}"+
-            ".mentesa-msg .bubble{display:inline-block;padding:8px 10px;border-radius:10px;max-width:80%}"+
-            ".mentesa-msg.user .bubble{background:#e8f0fe}"+
-            ".mentesa-msg.bot .bubble{background:#f5f5f5}"+
-            ".mentesa-input{display:flex;border-top:1px solid #f1f1f1}"+
-            ".mentesa-input input{flex:1;padding:10px;border:none;outline:none}"+
-            ".mentesa-input button{padding:0 12px;border:none;background:#111;color:#fff;cursor:pointer}";
+    // Chat content
+    const chatContent = document.createElement("div");
+    chatContent.id = "mentesa-chat-content";
+    chatContent.style.flex = "1";
+    chatContent.style.padding = "10px";
+    chatContent.style.overflowY = "auto";
+    chatContent.style.backgroundColor = "#f9f9f9";
+    chatBox.appendChild(chatContent);
 
-  var elStyle = document.createElement('style');
-  elStyle.type = 'text/css';
-  elStyle.appendChild(document.createTextNode(css));
-  document.head.appendChild(elStyle);
+    // Input container
+    const inputContainer = document.createElement("div");
+    inputContainer.style.display = "flex";
+    inputContainer.style.borderTop = "1px solid #ccc";
 
-  // Root containers
-  var root = document.createElement('div');
-  root.className = 'mentesa-widget';
-  var fab = document.createElement('button');
-  fab.className = 'mentesa-fab';
-  fab.title = 'Chat with Mentesa Bot';
-  fab.innerHTML = '💬';
-  var panel = document.createElement('div');
-  panel.className = 'mentesa-panel';
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "Type a message…";
+    input.style.flex = "1";
+    input.style.padding = "10px";
+    input.style.border = "none";
+    input.style.outline = "none";
 
-  var header = document.createElement('div');
-  header.className = 'mentesa-header';
-  header.textContent = 'Mentesa Bot';
-  var body = document.createElement('div');
-  body.className = 'mentesa-body';
-  var inputWrap = document.createElement('div');
-  inputWrap.className = 'mentesa-input';
-  var input = document.createElement('input');
-  input.placeholder = 'Type a message...';
-  var sendBtn = document.createElement('button');
-  sendBtn.textContent = 'Send';
+    const sendBtn = document.createElement("button");
+    sendBtn.textContent = "Send";
+    sendBtn.style.backgroundColor = "#0084ff";
+    sendBtn.style.color = "#fff";
+    sendBtn.style.border = "none";
+    sendBtn.style.padding = "0 15px";
+    sendBtn.style.cursor = "pointer";
 
-  inputWrap.appendChild(input);
-  inputWrap.appendChild(sendBtn);
-  panel.appendChild(header);
-  panel.appendChild(body);
-  panel.appendChild(inputWrap);
+    inputContainer.appendChild(input);
+    inputContainer.appendChild(sendBtn);
+    chatBox.appendChild(inputContainer);
 
-  root.appendChild(fab);
-  document.body.appendChild(root);
-  document.body.appendChild(panel);
+    document.body.appendChild(chatBox);
 
-  fab.addEventListener('click', function(){
-    panel.style.display = (panel.style.display === 'block') ? 'none' : 'block';
-    if(panel.style.display === 'block'){ input.focus(); }
-  });
+    // Dummy send function
+    sendBtn.addEventListener("click", function() {
+        const message = input.value.trim();
+        if (!message) return;
 
-  function appendMsg(side, text){
-    var row = document.createElement('div');
-    row.className = 'mentesa-msg ' + side;
-    var b = document.createElement('div');
-    b.className = 'bubble';
-    b.textContent = text;
-    row.appendChild(b);
-    body.appendChild(row);
-    body.scrollTop = body.scrollHeight;
-  }
+        const userMsg = document.createElement("div");
+        userMsg.textContent = "🧑 " + message;
+        userMsg.style.backgroundColor = "#0084ff";
+        userMsg.style.color = "#fff";
+        userMsg.style.padding = "6px 10px";
+        userMsg.style.margin = "5px 0";
+        userMsg.style.borderRadius = "10px";
+        userMsg.style.textAlign = "right";
 
-  async function send(){
-    var text = (input.value || "").trim();
-    if(!text) return;
-    appendMsg('user', text);
-    input.value = "";
-    try{
-      var res = await fetch(BACKEND + "/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + API_KEY
-        },
-        body: JSON.stringify({ message: text })
-      });
-      var data = await res.json();
-      appendMsg('bot', data && data.reply ? data.reply : "No reply");
-    }catch(err){
-      appendMsg('bot', "⚠️ Error: " + err.message);
-    }
-  }
+        chatContent.appendChild(userMsg);
+        chatContent.scrollTop = chatContent.scrollHeight;
+        input.value = "";
 
-  input.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ send(); }});
-  sendBtn.addEventListener('click', send);
-})();
+        // Placeholder bot reply
+        const botMsg = document.createElement("div");
+        botMsg.textContent = "🤖 This is a reply from " + botName;
+        botMsg.style.backgroundColor = "#f1f0f0";
+        botMsg.style.color = "#000";
+        botMsg.style.padding = "6px 10px";
+        botMsg.style.margin = "5px 0";
+        botMsg.style.borderRadius = "10px";
+        botMsg.style.textAlign = "left";
+
+        setTimeout(() => {
+            chatContent.appendChild(botMsg);
+            chatContent.scrollTop = chatContent.scrollHeight;
+        }, 500);
+    });
+});
+
     """.strip()
     return js
