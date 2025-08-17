@@ -38,6 +38,18 @@ if not BOTS_FILE.exists():
 
 from utils.firebase_config import db
 
+# --- Load bots from Firebase at startup ---
+bots = []
+def load_bots():
+    global bots
+    bots_ref = db.collection("bots").stream()
+    bots = []
+    for doc in bots_ref:
+        data = doc.to_dict()
+        data["id"] = doc.id
+        bots.append(data)
+
+load_bots()
 
 bot_id = str(uuid.uuid4())
 bot_doc = {
@@ -53,16 +65,6 @@ db.collection("bots").document(bot_id).set(bot_doc)
 # Create API key
 api_key = str(uuid.uuid4())
 db.collection("bot_api_keys").document(bot_id).set({"api_key": api_key})
-
-def load_bots():
-    # Load bots from Firebase
-    bots_ref = db.collection("bots").stream()
-    bots = []
-    for doc in bots_ref:
-        data = doc.to_dict()
-        data['id'] = doc.id   # add document ID
-        bots.append(data)
-    
 
 
 def save_bots(bots):
