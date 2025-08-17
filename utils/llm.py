@@ -73,32 +73,43 @@ def generate_bot_config_gemini(prompt):
     except Exception as e:
         raise RuntimeError(f"[Generation Error] {e}")
 
-def chat_with_gemini(message: str, personality: str) -> str:
-    prompt = (
-        f"You are a helpful chatbot with this personality:\n"
-        f"{personality}\nUser: {message}\nBot:"
-    )
+import requests
+import os
+
+# Example function to chat with Gemini
+def chat_with_gemini(user_message, personality, api_key=None):
+    """
+    Sends a message to Gemini and returns the bot's reply.
+
+    Args:
+        user_message (str): The message from the user.
+        personality (str): Personality description of the bot.
+        api_key (str, optional): API key for authentication if required.
+
+    Returns:
+        str: Bot's response.
+    """
+    # Replace this URL with your Gemini API endpoint
+    GEMINI_API_URL = "https://api.gemini.ai/generate"
+
+    headers = {
+        "Content-Type": "application/json",
+    }
+
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    payload = {
+        "prompt": f"Personality: {personality}\nUser: {user_message}\nBot:",
+        "max_tokens": 200
+    }
+
     try:
-        response = model.generate_content(prompt)
-
-        # Extract text from response
-        try:
-            text = response.text
-            return text.strip()
-        except ValueError:
-            # If direct text access fails, try to get it from parts
-            try:
-                parts = []
-                for part in response.parts:
-                    if hasattr(part, "text"):
-                        parts.append(part.text)
-                text = " ".join(parts).strip()
-                if text:
-                    return text
-            except Exception:
-                pass
-            
-        return "[Chat Error] Failed to get response from Gemini"
-
+        response = requests.post(GEMINI_API_URL, json=payload, headers=headers, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        # Adjust the key depending on Gemini response format
+        return data.get("text", "🤖 Sorry, I didn't understand that.")
     except Exception as e:
-        return f"[Chat Error] {str(e)}"
+        print("Error in chat_with_gemini:", e)
+        return "🤖 Sorry, I couldn't generate a response."

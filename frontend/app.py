@@ -86,21 +86,28 @@ def chat_interface():
     st.header("💬 Chat with Your Bot")
     st.markdown("---")
 
-    # --- Load bots from Firebase ---
-    bots_ref = db.collection("bots").stream()
-    bots = []
-    for doc in bots_ref:
-        data = doc.to_dict()
-        data["id"] = doc.id
-        bots.append(data)
-
-    if not bots:
-        st.info("No bots available — create one above.")
+    # Fetch bots from Firebase
+    try:
+        bots_ref = db.collection("bots").stream()
+        bots = []
+        for doc in bots_ref:
+            data = doc.to_dict()
+            bots.append({
+                "id": doc.id,
+                "name": data.get("name", "Unnamed Bot"),
+                "personality": data.get("personality", ""),
+                "api_key": data.get("api_key", None)
+            })
+    except Exception as e:
+        st.error(f"Failed to fetch bots from Firebase: {e}")
         return
 
-    # --- Select bot ---
-    bot_items = [(f"{b['name']} ({b['id'][:6]})", b['id']) for b in bots]
+    if not bots:
+        st.info("No bots available — create one first.")
+        return
 
+    # Select bot
+    bot_items = [(f"{b['name']} ({b['id'][:6]})", b['id']) for b in bots]
     selected_label, selected_bot_id = st.selectbox(
         "Choose a bot",
         options=bot_items,
@@ -108,25 +115,24 @@ def chat_interface():
         key="chat_selectbox"
     )
 
+    # Fetch selected bot info
     selected_bot_info = next(b for b in bots if b['id'] == selected_bot_id)
+    api_key = selected_bot_info.get("api_key")
 
     st.markdown("---")
 
-    # --- Load chat history from Firebase ---
+    # Load & normalize chat history
     if "chat_bot_id" not in st.session_state or st.session_state.chat_bot_id != selected_bot_id:
         st.session_state.chat_bot_id = selected_bot_id
-        history_doc = db.collection("bot_chats").document(selected_bot_id).get()
-        if history_doc.exists:
-            st.session_state.history = history_doc.to_dict().get("history", [])
-        else:
-            st.session_state.history = []
+        raw_history = load_chat_history(selected_bot_id)
+        st.session_state.history = normalize_history(raw_history)
 
     history = st.session_state.history
 
     if "typing" not in st.session_state:
         st.session_state.typing = False
 
-    # --- Iframe for chat UI ---
+    # Render chat box
     history_json = json.dumps(history)
     typing_json = json.dumps(bool(st.session_state.typing))
     iframe_html = f"""
@@ -213,31 +219,24 @@ def chat_interface():
     """
     components_html(iframe_html, height=460, width=1200, scrolling=True)
 
-    # --- User input ---
+    # User input
     user_input = st.chat_input("Type your message…")
     if user_input:
         history.append({"role": "user", "content": user_input})
+        save_chat_history(selected_bot_id, history)
         st.session_state.history = history
         st.session_state.typing = True
-        # Save immediately to Firebase
-        db.collection("bot_chats").document(selected_bot_id).set({"history": history})
         st.rerun()
 
-    # --- Generate bot reply ---
+    # Bot response
     if st.session_state.typing:
-        api_key = selected_bot_info.get("api_key")
-        reply = chat_with_gemini(
-            user_message=history[-1]["content"],
-            personality=selected_bot_info["personality"],
-            api_key=api_key
-        )
+        reply = chat_with_gemini(user_message=history[-1]["content"], personality=selected_bot_info["personality"], api_key=api_key)
         history.append({"role": "bot", "content": reply})
+        save_chat_history(selected_bot_id, history)
         st.session_state.history = history
         st.session_state.typing = False
-        # Save reply to Firebase
-        db.collection("bot_chats").document(selected_bot_id).set({"history": history})
         st.rerun()
-
+        
 # ---------------- BOT MANAGEMENT ----------------
 BACKEND="https://mentesa-2kf8.onrender.com"
 
