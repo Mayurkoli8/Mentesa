@@ -1,49 +1,41 @@
 (function() {
   const scriptTag = document.currentScript;
-  const backend = scriptTag.src.split("/embed.js")[0]; 
+  const backend = scriptTag.getAttribute("data-backend-url") || scriptTag.src.split("/embed.js")[0];
   const apiKey = scriptTag.getAttribute("data-api-key");
   const botName = scriptTag.getAttribute("data-bot-name") || "Mentesa Bot";
 
   // --- Create chat widget ---
   const widget = document.createElement("div");
-  widget.style.position = "fixed";
-  widget.style.bottom = "20px";
-  widget.style.right = "20px";
-  widget.style.width = "300px";
-  widget.style.height = "400px";
-  widget.style.background = "#fff";
-  widget.style.border = "1px solid #ccc";
-  widget.style.borderRadius = "12px";
-  widget.style.display = "flex";
-  widget.style.flexDirection = "column";
-  widget.style.overflow = "hidden";
-  widget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.2)";
-  widget.style.zIndex = "9999";
+  Object.assign(widget.style, {
+    position: "fixed",
+    bottom: "20px",
+    right: "20px",
+    width: "300px",
+    height: "400px",
+    background: "#fff",
+    border: "1px solid #ccc",
+    borderRadius: "12px",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
+    zIndex: "9999"
+  });
 
   const messagesBox = document.createElement("div");
-  messagesBox.style.flex = "1";
-  messagesBox.style.overflowY = "auto";
-  messagesBox.style.padding = "10px";
+  Object.assign(messagesBox.style, { flex: "1", overflowY: "auto", padding: "10px" });
 
   const inputBox = document.createElement("div");
-  inputBox.style.display = "flex";
-  inputBox.style.borderTop = "1px solid #ccc";
+  Object.assign(inputBox.style, { display: "flex", borderTop: "1px solid #ccc" });
 
   const input = document.createElement("input");
   input.type = "text";
   input.placeholder = "Type a message...";
-  input.style.flex = "1";
-  input.style.padding = "10px";
-  input.style.border = "none";
-  input.style.outline = "none";
+  Object.assign(input.style, { flex: "1", padding: "10px", border: "none", outline: "none" });
 
   const sendBtn = document.createElement("button");
   sendBtn.innerText = "Send";
-  sendBtn.style.padding = "10px";
-  sendBtn.style.border = "none";
-  sendBtn.style.cursor = "pointer";
-  sendBtn.style.background = "#007bff";
-  sendBtn.style.color = "#fff";
+  Object.assign(sendBtn.style, { padding: "10px", border: "none", cursor: "pointer", background: "#007bff", color: "#fff" });
 
   inputBox.appendChild(input);
   inputBox.appendChild(sendBtn);
@@ -71,12 +63,24 @@
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // 🔑 Pass API key properly
           "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({ message: text })
       });
-      const data = await res.json();
+
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        addMessage(botName, "Invalid response from server");
+        return;
+      }
+
+      if (!res.ok) {
+        addMessage(botName, `Error: ${data.detail || res.statusText}`);
+        return;
+      }
+
       addMessage(botName, data.reply || "No reply");
     } catch (err) {
       addMessage(botName, "Error: " + err.message);
@@ -84,8 +88,5 @@
   }
 
   sendBtn.onclick = sendMessage;
-  input.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") sendMessage();
-  });
-
+  input.addEventListener("keypress", (e) => { if (e.key === "Enter") sendMessage(); });
 })();

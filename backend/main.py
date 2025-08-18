@@ -189,7 +189,7 @@ def rotate_bot_api_key(bot_id: str):
 # Route: Chat
 # -------------------------------------------------
 @app.post("/chat")
-def chat(req: ChatRequest, authorization: Optional[str] = Header(default=None), x_api_key: Optional[str] = Header(default=None)):
+async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=None), x_api_key: Optional[str] = Header(default=None)):
     api_key = None
     if authorization and authorization.lower().startswith("bearer "):
         api_key = authorization.split(" ", 1)[1].strip()
@@ -203,17 +203,14 @@ def chat(req: ChatRequest, authorization: Optional[str] = Header(default=None), 
             raise HTTPException(status_code=401, detail="Invalid API key")
     else:
         if not req.bot_id:
-            raise HTTPException(status_code=400, detail="Provide Authorization: Bearer <api_key> or bot_id in body")
+            raise HTTPException(status_code=400, detail="Provide Authorization or bot_id")
         bot = find_bot_by_id(req.bot_id)
         if not bot:
             raise HTTPException(status_code=404, detail="Bot not found")
 
-    personality = bot.get("personality") or ""
-    name = bot.get("name") or "Mentesa Bot"
-    prompt = f"You are '{name}'. Personality: {personality}\nUser: {req.message}"
+    prompt = f"You are '{bot['name']}'. Personality: {bot['personality']}\nUser: {req.message}"
 
     try:
-        # 🔑 Use bot's api_key, not global GEMINI_API_KEY
         genai.configure(api_key=bot["api_key"])
         model = genai.GenerativeModel("gemini-2.5-pro")
         response = model.generate_content(prompt)
