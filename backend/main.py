@@ -189,32 +189,31 @@ def rotate_bot_api_key(bot_id: str):
 # Route: Chat
 # -------------------------------------------------
 @app.post("/chat")
-async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=None), x_api_key: Optional[str] = Header(default=None)):
+def chat(req: ChatRequest, authorization: Optional[str] = Header(default=None)):
     api_key = None
     if authorization and authorization.lower().startswith("bearer "):
         api_key = authorization.split(" ", 1)[1].strip()
-    elif x_api_key:
-        api_key = x_api_key.strip()
-
-    bot = None
-    if api_key:
-        bot = find_bot_by_api_key(api_key)
-        if not bot:
-            raise HTTPException(status_code=401, detail="Invalid API key")
     else:
         if not req.bot_id:
-            raise HTTPException(status_code=400, detail="Provide Authorization or bot_id")
-        bot = find_bot_by_id(req.bot_id)
-        if not bot:
-            raise HTTPException(status_code=404, detail="Bot not found")
+            raise HTTPException(status_code=400, detail="Provide Authorization: Bearer <api_key> or bot_id in body")
+        api_key = req.bot_id  # fallback to bot_id as key for embedding
 
-    prompt = f"You are '{bot['name']}'. Personality: {bot['personality']}\nUser: {req.message}"
+    bot = BOTS.get(api_key)
+    if not bot:
+        raise HTTPException(status_code=401, detail="Invalid API key or bot_id")
+
+    # Build prompt
+    name = bot["name"]
+    personality = bot.get("personality", "")
+    prompt = f"You are '{name}'. Personality: {personality}\nUser: {req.message}"
 
     try:
+        # Configure Gemini per bot
         genai.configure(api_key=bot["api_key"])
         model = genai.GenerativeModel("gemini-2.5-pro")
         response = model.generate_content(prompt)
 
+        # Extract reply
         reply_text = "I couldn't generate a reply."
         try:
             if getattr(response, "candidates", None):
@@ -225,5 +224,6 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
             pass
 
         return {"reply": reply_text, "bot_id": bot["id"]}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

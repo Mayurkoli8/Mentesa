@@ -1,45 +1,45 @@
 (function() {
   const scriptTag = document.currentScript;
+
+  // --- Use optional backend URL ---
   const backend = scriptTag.getAttribute("data-backend-url") || scriptTag.src.split("/embed.js")[0];
   const apiKey = scriptTag.getAttribute("data-api-key");
   const botName = scriptTag.getAttribute("data-bot-name") || "Mentesa Bot";
 
-  // --- Create chat widget ---
+  // --- Create widget ---
   const widget = document.createElement("div");
-  Object.assign(widget.style, {
-    position: "fixed",
-    bottom: "20px",
-    right: "20px",
-    width: "300px",
-    height: "400px",
-    background: "#fff",
-    border: "1px solid #ccc",
-    borderRadius: "12px",
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-    boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
-    zIndex: "9999"
-  });
+  widget.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 300px;
+    height: 400px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+    z-index: 9999;
+  `;
 
   const messagesBox = document.createElement("div");
-  Object.assign(messagesBox.style, { flex: "1", overflowY: "auto", padding: "10px" });
-
+  messagesBox.style.cssText = "flex:1; overflow-y:auto; padding:10px;";
   const inputBox = document.createElement("div");
-  Object.assign(inputBox.style, { display: "flex", borderTop: "1px solid #ccc" });
+  inputBox.style.cssText = "display:flex; border-top:1px solid #ccc;";
 
   const input = document.createElement("input");
   input.type = "text";
   input.placeholder = "Type a message...";
-  Object.assign(input.style, { flex: "1", padding: "10px", border: "none", outline: "none" });
+  input.style.cssText = "flex:1; padding:10px; border:none; outline:none;";
 
   const sendBtn = document.createElement("button");
   sendBtn.innerText = "Send";
-  Object.assign(sendBtn.style, { padding: "10px", border: "none", cursor: "pointer", background: "#007bff", color: "#fff" });
+  sendBtn.style.cssText = "padding:10px; border:none; cursor:pointer; background:#007bff; color:#fff;";
 
   inputBox.appendChild(input);
   inputBox.appendChild(sendBtn);
-
   widget.appendChild(messagesBox);
   widget.appendChild(inputBox);
   document.body.appendChild(widget);
@@ -67,20 +67,7 @@
         },
         body: JSON.stringify({ message: text })
       });
-
-      let data;
-      try {
-        data = await res.json();
-      } catch {
-        addMessage(botName, "Invalid response from server");
-        return;
-      }
-
-      if (!res.ok) {
-        addMessage(botName, `Error: ${data.detail || res.statusText}`);
-        return;
-      }
-
+      const data = await res.json();
       addMessage(botName, data.reply || "No reply");
     } catch (err) {
       addMessage(botName, "Error: " + err.message);
