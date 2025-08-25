@@ -72,7 +72,7 @@ else:
 # -------------------------------------------------
 
 origins = [
-    "https://mayurkoli8.github.io",  # allow your GitHub Pages site
+    "https://mayurkoli8.github.io/portfolio/",  # allow your GitHub Pages site
     "http://localhost:3000",        # optional for local testing
 ]
 
