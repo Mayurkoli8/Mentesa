@@ -71,17 +71,13 @@ else:
 # Middleware
 # -------------------------------------------------
 
-origins = [
-    "https://mayurkoli8.github.io/portfolio/",  # allow your GitHub Pages site
-    "http://localhost:3000",        # optional for local testing
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["https://mayurkoli8.github.io/portfolio"],  # or explicitly ["https://your-portfolio-site.com"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],   # ensure exposed headers too
 )
 
 # -------------------------------------------------
