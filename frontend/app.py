@@ -53,19 +53,21 @@ def create_and_save_bot():
             st.error(f"Failed to generate bot: {cfg.get('error', 'No data returned')}")
             return
 
-        bot_id = str(uuid.uuid4())
-        api_key = generate_api_key()  # generate API key
+        response = requests.post(
+            f"{BACKEND}/bots",
+            json={
+                "name": cfg["name"],
+                "personality": cfg["personality"],
+                "config": cfg.get("settings", {})
+            }
+        )
 
-        bot_data = {
-            "bot_id":  bot_id,
-            "name": cfg["name"],
-            "personality": cfg["personality"],
-            "api_key": api_key,
-            "settings": cfg.get("settings", {})
-        }
-
-        # Save to Firebase
-        db.collection("bots").document(bot_id).set(bot_data)
+        if response.status_code == 200:
+            data = response.json()
+            st.success(f"✅ Bot '{cfg['name']}' created and saved!")
+            st.code(data["api_key"], language="text")
+        else:
+            st.error(f"Failed to save bot: {response.text}")
 
         st.success(f"✅ Bot '{cfg['name']}' created and saved!")
         st.info("You can now manage it in the **Manage Bots** tab and get the embed snippet.")
@@ -227,10 +229,11 @@ def chat_interface():
     # --- Generate bot reply ---
     if st.session_state.typing:
         api_key = selected_bot_info.get("api_key")
-        reply = chat_with_gemini(
-            message=history[-1]["content"],
-            personality=selected_bot_info["personality"],
-        )
+        reply = requests.post(
+            f"{BACKEND}/chat",
+            json={"bot_id": selected_bot_id, "message": history[-1]["content"]}
+        ).json()["reply"]
+        
         history.append({"role": "bot", "content": reply})
         st.session_state.history = history
         st.session_state.typing = False
