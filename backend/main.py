@@ -191,19 +191,30 @@ def rotate_bot_api_key(bot_id: str):
 # Route: Chat
 # -------------------------------------------------
 @app.post("/chat")
-def chat(req: ChatRequest, authorization: Optional[str] = Header(default=None)):
+def chat(req: ChatRequest, 
+         authorization: Optional[str] = Header(default=None), 
+         x_api_key: Optional[str] = Header(default=None)):
+
     api_key = None
+
+    # 1. Check Authorization: Bearer
     if authorization and authorization.lower().startswith("bearer "):
         api_key = authorization.split(" ", 1)[1].strip()
+    # 2. Check x-api-key header
+    elif x_api_key:
+        api_key = x_api_key.strip()
+    # 3. Fallback to bot_id
+    elif req.bot_id:
+        api_key = req.bot_id
     else:
-        if not req.bot_id:
-            raise HTTPException(status_code=400, detail="Provide Authorization: Bearer <api_key> or bot_id in body")
-        api_key = req.bot_id  # fallback to bot_id
+        raise HTTPException(status_code=400, detail="Provide Authorization, x-api-key, or bot_id")
 
-    # 🔑 Try to find the bot
+    # 🔑 Find bot
     bot = find_bot_by_api_key(api_key) or find_bot_by_id(api_key)
     if not bot:
         raise HTTPException(status_code=401, detail="Invalid API key or bot_id")
+
+    # Continue with Gemini response...
 
     # Build prompt
     name = bot["name"]

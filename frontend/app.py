@@ -54,9 +54,10 @@ def create_and_save_bot():
             return
 
         bot_id = str(uuid.uuid4())
-        api_key = str(uuid.uuid4())  # generate API key
+        api_key = generate_api_key()  # generate API key
 
         bot_data = {
+            "bot_id":  bot_id,
             "name": cfg["name"],
             "personality": cfg["personality"],
             "api_key": api_key,
