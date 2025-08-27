@@ -1,338 +1,142 @@
 import streamlit as st
-import uuid
-import json
-import sys
-import os
 import requests
+import firebase_admin
+from firebase_admin import credentials, firestore
+import os
 
+# --- BACKEND URL ---
+BACKEND = "http://localhost:8000"
 
-# Add root dir so utils/ can be imported
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# --- FIREBASE INIT (for chat history only) ---
+if not firebase_admin._apps:
+    cred = credentials.Certificate("serviceAccount.json")
+    firebase_admin.initialize_app(cred)
+db = firestore.client()
 
-from streamlit.components.v1 import html as components_html
-from utils.llm import generate_bot_config_gemini, chat_with_gemini
-from utils.bot_ops import load_bots, save_bots, delete_bot, rename_bot, update_personality
-from utils.chat_ops import load_chat_history, save_chat_history, clear_chat_history
-from ui import apply_custom_styles, show_header 
-
-from utils.firebase_config import db
-
-# --- PAGE CONFIG ---
-st.set_page_config(
-    page_title="Mentesa",
-    page_icon="🧠",
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
-# Apply styles
-apply_custom_styles()
-
-# Show header
-show_header()
-# ---------------- BOT CREATION ----------------
-import uuid
-import streamlit as st
-from utils.llm import generate_bot_config_gemini
-
-
+# --- UI HELPERS ---
 def create_and_save_bot():
-    st.subheader("✨ Create Your Bot")
-    st.write("Describe the bot you want, and we'll generate it with AI.")
+    st.header("🤖 Create a New Bot")
 
-    prompt = st.text_area("🤔 What type of bot do you want?")
+    name = st.text_input("Bot Name")
+    personality = st.text_area("Bot Personality / Description")
+    system_prompt = st.text_area("System Prompt (optional)")
+    api_key = st.text_input("Gemini API Key (required)", type="password")
 
-    if st.button("🚀 Create Bot"):
-        if not prompt.strip():
-            st.warning("Please enter a prompt before generating.")
+    if st.button("Create Bot"):
+        if not api_key or not name:
+            st.error("❌ Name and API key are required")
             return
 
-        with st.spinner("Generating bot..."):
-            cfg = generate_bot_config_gemini(prompt)
+        # Send to backend
+        payload = {
+            "name": name,
+            "personality": personality,
+            "config": {"system_prompt": system_prompt, "api_key": api_key},
+        }
+        try:
+            res = requests.post(f"{BACKEND}/bots", json=payload)
+            if res.status_code == 200:
+                data = res.json()
+                st.success(f"✅ Bot '{name}' created!")
+                st.code(data["api_key"], language="text")
+                st.caption(f"🔒 Masked Key: {data['api_key_masked']}")
+            else:
+                st.error(f"❌ Backend error: {res.text}")
+        except Exception as e:
+            st.error(f"⚠️ Request failed: {e}")
 
-        if not cfg or "error" in cfg:
-            st.error(f"Failed to generate bot: {cfg.get('error', 'No data returned')}")
-            return
 
-        response = requests.post(
-            f"{BACKEND}/bots",
-            json={
-                "name": cfg["name"],
-                "personality": cfg["personality"],
-                "config": cfg.get("settings", {})
-            }
-        )
-
-        if response.status_code == 200:
-            data = response.json()
-            st.success(f"✅ Bot '{cfg['name']}' created and saved!")
-            st.code(data["api_key"], language="text")
-        else:
-            st.error(f"Failed to save bot: {response.text}")
-
-        st.success(f"✅ Bot '{cfg['name']}' created and saved!")
-        st.info("You can now manage it in the **Manage Bots** tab and get the embed snippet.")
-# ---------------- CHAT INTERFACE ----------------
-def normalize_history(raw_history):
-    """Convert old {'user':'', 'bot':''} into [{'role','content'}, ...]."""
-    normalized = []
-    for turn in raw_history:
-        if isinstance(turn, dict):
-            if "role" in turn and "content" in turn:
-                normalized.append({"role": turn["role"], "content": turn["content"]})
-            elif "user" in turn and "bot" in turn:
-                normalized.append({"role": "user", "content": turn["user"]})
-                normalized.append({"role": "bot", "content": turn["bot"]})
-    return normalized
-
-# ---------------- CHAT INTERFACE ----------------
 def chat_interface():
-    st.header("💬 Chat with Your Bot")
-    st.markdown("---")
+    st.header("💬 Chat with a Bot")
 
-    # --- Load bots from Firebase ---
-    bots_ref = db.collection("bots").stream()
-    bots = []
-    for doc in bots_ref:
-        data = doc.to_dict()
-        data["id"] = doc.id
-        bots.append(data)
-
-    if not bots:
-        st.info("No bots available — create one above.")
+    # Fetch bots from backend
+    try:
+        bots_res = requests.get(f"{BACKEND}/bots").json()
+        bots = bots_res.get("bots", [])
+    except Exception as e:
+        st.error(f"⚠️ Could not load bots: {e}")
         return
 
-    # --- Select bot ---
-    bot_items = [(f"{b['name']} ({b['id'][:6]})", b['id']) for b in bots]
+    if not bots:
+        st.warning("No bots available. Create one first.")
+        return
 
-    selected_label, selected_bot_id = st.selectbox(
-        "Choose a bot",
-        options=bot_items,
-        format_func=lambda x: x[0],
-        key="chat_selectbox"
-    )
+    bot_options = {bot["name"]: bot["id"] for bot in bots}
+    selected_bot_name = st.selectbox("Choose a Bot", list(bot_options.keys()))
+    selected_bot_id = bot_options[selected_bot_name]
 
-    selected_bot_info = next(b for b in bots if b['id'] == selected_bot_id)
+    # Chat history in Firebase
+    chat_ref = db.collection("chats").document(selected_bot_id)
+    chat_doc = chat_ref.get()
+    history = chat_doc.to_dict().get("messages", []) if chat_doc.exists else []
 
-    st.markdown("---")
+    # Display history
+    for msg in history:
+        role = "🧑 You" if msg["role"] == "user" else "🤖 Bot"
+        st.write(f"**{role}:** {msg['content']}")
 
-    # --- Load chat history from Firebase ---
-    if "chat_bot_id" not in st.session_state or st.session_state.chat_bot_id != selected_bot_id:
-        st.session_state.chat_bot_id = selected_bot_id
-        history_doc = db.collection("bot_chats").document(selected_bot_id).get()
-        if history_doc.exists:
-            st.session_state.history = history_doc.to_dict().get("history", [])
-        else:
-            st.session_state.history = []
+    # Input
+    user_msg = st.text_input("Type your message...")
+    if st.button("Send") and user_msg.strip():
+        # Append user message
+        history.append({"role": "user", "content": user_msg})
 
-    history = st.session_state.history
+        try:
+            res = requests.post(f"{BACKEND}/chat", json={"bot_id": selected_bot_id, "message": user_msg})
+            if res.status_code == 200:
+                bot_reply = res.json()["reply"]
+                history.append({"role": "assistant", "content": bot_reply})
+            else:
+                st.error(f"❌ Chat error: {res.text}")
+                return
+        except Exception as e:
+            st.error(f"⚠️ Request failed: {e}")
+            return
 
-    if "typing" not in st.session_state:
-        st.session_state.typing = False
-
-    # --- Iframe for chat UI ---
-    history_json = json.dumps(history)
-    typing_json = json.dumps(bool(st.session_state.typing))
-    iframe_html = f"""
-    <!doctype html>
-    <html>
-    <head>
-      <meta charset="utf-8" />
-      <style>
-        body {{ margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial; }}
-        .chat-box {{
-            height: 500px;
-            overflow-y: auto;
-            padding: 12px;
-            width: 100%;
-            box-sizing: border-box;
-            background: transparent;
-        }}
-        .msg-user {{
-            background: #0084ff;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 12px;
-            max-width: max-content;
-            margin-bottom: 8px;
-            margin-left: auto;
-            text-align: right;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }}
-        .msg-bot {{
-            background: #f1f0f0;
-            color: #000;
-            padding: 8px 12px;
-            border-radius: 12px;
-            max-width: 70%;
-            margin-bottom: 8px;
-            margin-right: auto;
-            text-align: left;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }}
-        .msg-typing {{
-            background: #f1f0f0;
-            color: black;
-            padding: 8px 12px;
-            border-radius: 12px;
-            max-width: 30%;
-            margin-bottom: 8px;
-            margin-right: auto;
-            font-style: italic;
-            opacity: 1;
-        }}
-      </style>
-    </head>
-    <body>
-      <div id="chat-scroll-box" class="chat-box"></div>
-      <script>
-        const history = {history_json};
-        const typing = {typing_json};
-        function renderChat() {{
-            const box = document.getElementById('chat-scroll-box');
-            box.innerHTML = "";
-            for (let i=0;i<history.length;i++) {{
-                const turn = history[i];
-                const div = document.createElement('div');
-                div.className = turn.role === 'user' ? 'msg-user' : 'msg-bot';
-                div.textContent = (turn.role === 'user' ? '🧑 ' : '🤖 ') + turn.content;
-                box.appendChild(div);
-            }}
-            if (typing) {{
-                const t = document.createElement('div');
-                t.className = 'msg-typing';
-                t.textContent = '🤖 typing…';
-                box.appendChild(t);
-            }}
-            box.scrollTop = box.scrollHeight;
-            setTimeout(()=>{{ box.scrollTop = box.scrollHeight; }}, 50);
-            setTimeout(()=>{{ box.scrollTop = box.scrollHeight; }}, 300);
-        }}
-        setTimeout(renderChat, 10);
-      </script>
-    </body>
-    </html>
-    """
-    components_html(iframe_html, height=460, width=1200, scrolling=True)
-
-    # --- User input ---
-    user_input = st.chat_input("Type your message…")
-    if user_input:
-        history.append({"role": "user", "content": user_input})
-        st.session_state.history = history
-        st.session_state.typing = True
-        # Save immediately to Firebase
-        db.collection("bot_chats").document(selected_bot_id).set({"history": history})
+        # Save updated history
+        chat_ref.set({"messages": history})
         st.rerun()
 
-    # --- Generate bot reply ---
-    if st.session_state.typing:
-        api_key = selected_bot_info.get("api_key")
-        reply = requests.post(
-            f"{BACKEND}/chat",
-            json={"bot_id": selected_bot_id, "message": history[-1]["content"]}
-        ).json()["reply"]
-        
-        history.append({"role": "bot", "content": reply})
-        st.session_state.history = history
-        st.session_state.typing = False
-        # Save reply to Firebase
-        db.collection("bot_chats").document(selected_bot_id).set({"history": history})
-        st.rerun()
-
-# ---------------- BOT MANAGEMENT ----------------
-BACKEND="https://mentesa-2kf8.onrender.com"
 
 def bot_management_ui():
-    st.subheader("🛠️ Manage Your Bots")
+    st.header("🛠 Manage Bots")
 
-    # Load bots from Firebase
-    bots = []
-    for doc in db.collection("bots").stream():
-        bot = doc.to_dict()
-        bot["id"] = doc.id  # add the document ID
-        bots.append(bot)
-
-    if not bots:
-        st.info("No bots available — create one first.")
+    # Load from backend
+    try:
+        bots_res = requests.get(f"{BACKEND}/bots").json()
+        bots = bots_res.get("bots", [])
+    except Exception as e:
+        st.error(f"⚠️ Could not load bots: {e}")
         return
 
-    # --- Select bot ---
-    bot_options = {f"{b['name']} ({b['id'][:6]})": b['id'] for b in bots}
-    selected_label = st.selectbox("Choose a bot", list(bot_options.keys()), key="manage_select")
-    selected_bot_id = bot_options[selected_label]
-    selected_bot_info = next(b for b in bots if b['id'] == selected_bot_id)
+    if not bots:
+        st.info("No bots created yet.")
+        return
 
-    # --- Bot management columns ---
-    col1, col2, col3, col4 = st.columns([2, 3, 1, 1])
+    for bot in bots:
+        with st.expander(f"🤖 {bot['name']}"):
+            st.write(f"**Personality:** {bot.get('personality', '')}")
+            st.json(bot.get("config", {}))
 
-    new_name = col1.text_input("Name", value=selected_bot_info['name'], key=f"name_{selected_bot_id}")
-    if col1.button("✏️ Rename", key=f"rename_{selected_bot_id}"):
-        db.collection("bots").document(selected_bot_id).update({"name": new_name})
-        st.success("Renamed!")
-        st.experimental_rerun()
+            if st.button(f"❌ Delete {bot['name']}", key=bot["id"]):
+                try:
+                    res = requests.delete(f"{BACKEND}/bots/{bot['id']}")
+                    if res.status_code == 200:
+                        st.success(f"Bot '{bot['name']}' deleted.")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Delete failed: {res.text}")
+                except Exception as e:
+                    st.error(f"⚠️ Request failed: {e}")
 
-    new_persona = col2.text_area("Personality", value=selected_bot_info['personality'], key=f"persona_{selected_bot_id}", height=80)
-    if col2.button("✏️ Update", key=f"update_{selected_bot_id}"):
-        db.collection("bots").document(selected_bot_id).update({"personality": new_persona})
-        st.success("Personality updated!")
-        st.experimental_rerun()
 
-    if col3.button("🧹 Clear Chat", key=f"manage_clear_{selected_bot_id}"):
-        db.collection("chat_history").document(selected_bot_id).delete()
-        st.success("Chat history cleared!")
-        st.experimental_rerun()
+# --- MAIN APP ---
+st.sidebar.title("Mentesa v2")
+page = st.sidebar.radio("Go to", ["Create", "Chat", "Manage"])
 
-    if col4.button("🗑️ Delete", key=f"delete_{selected_bot_id}"):
-        db.collection("bots").document(selected_bot_id).delete()
-        st.success("Bot deleted!")
-        st.experimental_rerun()
-
-    # --- Embed snippet ---
-    st.markdown("---")
-    st.write("📄 **Embed this bot on your website:**")
-
-    api_key = selected_bot_info.get("api_key")
-    if api_key:
-        embed_code = f'<script src="{BACKEND}/static/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
-        st.code(embed_code, language="html")
-
-        if st.button(f"📋 Copy snippet for {selected_bot_info['name']}", key=f"copy_{selected_bot_id}"):
-            try:
-                import pyperclip
-                pyperclip.copy(embed_code)
-                st.success("Embed snippet copied to clipboard!")
-            except Exception:
-                st.warning("Could not copy to clipboard. Copy manually.")
-
-        # Instructions
-        st.markdown(f"""
-        **How to use this snippet:**
-
-        1. Copy the code above (click inside the box and use Ctrl+C or your preferred copy method).
-        2. Open your website’s HTML (index.html) file.
-        3. Paste the snippet **before the closing `</body>` tag**.
-        4. Save your file and refresh your website.
-        5. The chat widget for **{selected_bot_info['name']}** will appear in the bottom-right corner.
-        6. Users can now chat with your bot directly on your site!
-
-        > ⚠️ Make sure your website allows external scripts if hosting backend separately.
-        """)
-    else:
-        st.warning("API key not found for this bot.")
-
-# ---------------- MAIN APP ----------------
-def main():
-    tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots"])
-
-    with tabs[0]:
-        create_and_save_bot()
-    with tabs[1]:
-        bot_management_ui()
-    with tabs[2]:
-        chat_interface()
-
-if __name__ == "__main__":
-    main()
-
+if page == "Create":
+    create_and_save_bot()
+elif page == "Chat":
+    chat_interface()
+elif page == "Manage":
+    bot_management_ui()
