@@ -282,7 +282,8 @@ def bot_management_ui():
         if "history" in st.session_state:
             st.session_state.history=[]
         st.success("Chat history cleared!")
-
+        st.rerun()
+        
     if col4.button("🗑️ Delete", key=f"delete_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).delete()
         st.success("Bot deleted!")
