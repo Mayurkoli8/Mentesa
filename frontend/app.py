@@ -278,7 +278,7 @@ def bot_management_ui():
         st.rerun()
 
     if col3.button("🧹 Clear Chat", key=f"manage_clear_{selected_bot_id}"):
-        db.collection("chat_history").document(selected_bot_id).delete()
+        db.collection("bot_chats").document(selected_bot_id).delete()
         st.success("Chat history cleared!")
         st.rerun()
 
