@@ -9,4 +9,3 @@ uvicorn[standard]
 pydantic
 python-dotenv
 firebase-admin
-pyperclip
