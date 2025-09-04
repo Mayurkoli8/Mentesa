@@ -16,6 +16,8 @@ from utils.chat_ops import load_chat_history, save_chat_history, clear_chat_hist
 from ui import apply_custom_styles, show_header 
 
 from utils.firebase_config import db
+BACKEND="https://mentesa-2kf8.onrender.com"
+
 
 # --- PAGE CONFIG ---
 st.set_page_config(
@@ -239,7 +241,6 @@ def chat_interface():
         st.rerun()
 
 # ---------------- BOT MANAGEMENT ----------------
-BACKEND="https://mentesa-2kf8.onrender.com"
 
 def bot_management_ui():
     st.subheader("🛠️ Manage Your Bots")
