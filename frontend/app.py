@@ -301,7 +301,7 @@ def bot_management_ui():
 
         if st.button(f"📋 Copy snippet for {selected_bot_info['name']}", key=f"copy_{selected_bot_id}"):
             try:
-                pyperclip.copy(embed_code)
+                pyperclip.copy(embed_code, langauge="html")
                 st.success("Embed snippet copied to clipboard!")
             except Exception:
                 st.warning("Could not copy to clipboard. Copy manually.")
