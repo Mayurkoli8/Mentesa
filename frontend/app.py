@@ -269,23 +269,23 @@ def bot_management_ui():
     if col1.button("✏️ Rename", key=f"rename_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).update({"name": new_name})
         st.success("Renamed!")
-        st.experimental_rerun()
+        st.rerun()
 
     new_persona = col2.text_area("Personality", value=selected_bot_info['personality'], key=f"persona_{selected_bot_id}", height=80)
     if col2.button("✏️ Update", key=f"update_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).update({"personality": new_persona})
         st.success("Personality updated!")
-        st.experimental_rerun()
+        st.rerun()
 
     if col3.button("🧹 Clear Chat", key=f"manage_clear_{selected_bot_id}"):
         db.collection("chat_history").document(selected_bot_id).delete()
         st.success("Chat history cleared!")
-        st.experimental_rerun()
+        st.rerun()
 
     if col4.button("🗑️ Delete", key=f"delete_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).delete()
         st.success("Bot deleted!")
-        st.experimental_rerun()
+        st.rerun()
 
     # --- Embed snippet ---
     st.markdown("---")
