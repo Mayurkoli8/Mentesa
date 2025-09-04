@@ -17,39 +17,45 @@
     width: 320px;
     height: 420px;
     background: #fff;
-    border: 1px solid #ccc;
     border-radius: 12px;
     display: none; /* hidden by default */
     flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 2px 15px rgba(0,0,0,0.25);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
     z-index: 9999;
-    font-family: Arial, sans-serif;
+    font-family: "Segoe UI", Arial, sans-serif;
   `;
 
   const header = document.createElement("div");
   header.style.cssText =
-    "background:#007bff; color:#fff; padding:10px; text-align:center; font-weight:bold;";
+    "background:#007bff; color:#fff; padding:12px; text-align:center; font-weight:bold;";
   header.textContent = botName;
 
   const messagesBox = document.createElement("div");
-  messagesBox.style.cssText =
-    "flex:1; overflow-y:auto; padding:10px; background:#f9f9f9;";
+  messagesBox.style.cssText = `
+    flex:1; 
+    overflow-y:auto; 
+    padding:12px; 
+    background:#f5f5f5;
+    display:flex; 
+    flex-direction:column;
+    gap:8px;
+  `;
 
   const inputBox = document.createElement("div");
   inputBox.style.cssText =
-    "display:flex; border-top:1px solid #ccc; background:#fff;";
+    "display:flex; border-top:1px solid #ddd; background:#fff; padding:6px;";
 
   const input = document.createElement("input");
   input.type = "text";
   input.placeholder = "Type a message...";
   input.style.cssText =
-    "flex:1; padding:10px; border:none; outline:none; font-size:14px;";
+    "flex:1; padding:10px; border-radius:20px; border:1px solid #ccc; outline:none; font-size:14px;";
 
   const sendBtn = document.createElement("button");
   sendBtn.innerText = "➤";
   sendBtn.style.cssText =
-    "padding:10px 15px; border:none; cursor:pointer; background:#007bff; color:#fff; font-weight:bold;";
+    "margin-left:6px; padding:0 16px; border:none; border-radius:50%; cursor:pointer; background:#007bff; color:#fff; font-size:16px;";
 
   inputBox.appendChild(input);
   inputBox.appendChild(sendBtn);
@@ -89,26 +95,33 @@
 
   // --- Helper functions ---
   function addMessage(sender, text) {
+    const msgWrapper = document.createElement("div");
+    msgWrapper.style.display = "flex";
+    msgWrapper.style.width = "100%";
+
     const msg = document.createElement("div");
-    msg.style.margin = "6px 0";
-    msg.style.padding = "8px";
-    msg.style.borderRadius = "8px";
-    msg.style.maxWidth = "80%";
+    msg.style.padding = "10px 14px";
+    msg.style.borderRadius = "18px";
+    msg.style.maxWidth = "70%";
     msg.style.wordWrap = "break-word";
     msg.style.fontSize = "14px";
+    msg.style.lineHeight = "1.4";
 
     if (sender === "You") {
+      msgWrapper.style.justifyContent = "flex-end";
       msg.style.background = "#007bff";
       msg.style.color = "#fff";
-      msg.style.alignSelf = "flex-end";
+      msg.style.borderBottomRightRadius = "4px";
     } else {
-      msg.style.background = "#eaeaea";
+      msgWrapper.style.justifyContent = "flex-start";
+      msg.style.background = "#e4e6eb";
       msg.style.color = "#000";
-      msg.style.alignSelf = "flex-start";
+      msg.style.borderBottomLeftRadius = "4px";
     }
 
-    msg.innerHTML = `<b style="font-size:12px;">${sender}:</b><br>${text}`;
-    messagesBox.appendChild(msg);
+    msg.innerHTML = text;
+    msgWrapper.appendChild(msg);
+    messagesBox.appendChild(msgWrapper);
     messagesBox.scrollTop = messagesBox.scrollHeight;
   }
 
