@@ -67,7 +67,6 @@ def create_and_save_bot():
         if response.status_code == 200:
             data = response.json()
             st.success(f"✅ Bot '{cfg['name']}' created and saved!")
-            st.code(data["api_key"], language="text")
         else:
             st.error(f"Failed to save bot: {response.text}")
 
