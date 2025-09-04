@@ -4,6 +4,7 @@ import json
 import sys
 import os
 import requests
+import pyperclip
 
 
 # Add root dir so utils/ can be imported
@@ -283,7 +284,7 @@ def bot_management_ui():
             st.session_state.history=[]
         st.success("Chat history cleared!")
         st.rerun()
-        
+
     if col4.button("🗑️ Delete", key=f"delete_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).delete()
         st.success("Bot deleted!")
@@ -300,7 +301,6 @@ def bot_management_ui():
 
         if st.button(f"📋 Copy snippet for {selected_bot_info['name']}", key=f"copy_{selected_bot_id}"):
             try:
-                import pyperclip
                 pyperclip.copy(embed_code)
                 st.success("Embed snippet copied to clipboard!")
             except Exception:
