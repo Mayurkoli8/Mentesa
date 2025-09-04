@@ -1,107 +1,90 @@
-🚀 Mentesa: A No-Code AI Bot Creation Platform
+# Mentesa: A No-Code AI Bot Creation Platform for Everyone
 
-Mentesa is a no-code platform that lets anyone create, manage, and chat with personalized AI bots — no coding required.
-Built for students, creators, and businesses, Mentesa combines powerful LLMs, memory, and file-based learning into a simple, user-friendly interface.
+**Mentesa** is an innovative no-code platform that enables users to create intelligent, personalized AI agents using just natural language. Powered by open-source LLMs like Mistral and Mixtral (via Ollama), Mentesa supports RAG, file-based learning, memory, and fine-tuning — all without writing a single line of code.
 
-🌐 Live Demo
+## 🌐 Live 
 
-🔗 Mentesa on Streamlit
+🔗 [Mentesa on Streamlit](https://Mentesa.streamlit.app)
 
-✨ Features
+## 🌐 V4 
 
-🤖 Create bots with natural language — just describe the personality you want
+🔗 [Mentesa on Streamlit](https://Mentesa4.streamlit.app)
 
-📄 Upload documents (PDFs, notes, text files) to teach your bot
+## ✨ New in Version $
 
-🧠 Contextual memory — bots remember conversations
+- 📄 The bots created on mentesav4 can be implented on external website through simple step without hardcoding 
+- 🤖 Bots can be used on external website as assistant for the website
 
-🔍 RAG support for accurate, context-aware answers
+## ✨ Core Key Features
 
-🔑 Multiple LLMs supported (via Ollama: Mistral, Mixtral, etc.)
+- 🤖 Create bots using natural language
+- 📄 Upload PDFs, notes, and documents for contextual understanding
+- 🧠 Powered by open-source LLMs (via Ollama)
+- 🧷 Retrieval-Augmented Generation (RAG)
+- 💾 Long-term memory + Fine-tuning (LoRA support)
+- 📦 Export bot bundles for integration
+- ☁️ Cloud hosting & sharing of your bots
+    
+## 🧱 Tech Stack (Initial Plan)
 
-📦 Exportable bot bundles for integration into apps
+- **Frontend**: Streamlit (for MVP), later React
+- **Backend**: FastAPI (or Flask), Render
+- **LLMs**: Mistral / Mixtral (via Ollama)
+- **Vector DB**: FAISS or ChromaDB
+- **Embeddings**: SentenceTransformers
+- **File Parsing**: PyMuPDF / PyPDF2
+- **Storage**: Firebase / Firestore / Supabase
 
-☁️ Cloud-synced storage of bots and chats
 
-🧱 Tech Stack
-
-Frontend: Streamlit (MVP), later migrating to React
-
-Backend: FastAPI
-
-LLMs: Mistral / Mixtral (via Ollama, Gemini planned)
-
-Vector DB: FAISS (previously ChromaDB)
-
-Embeddings: SentenceTransformers
-
-Storage: Firebase Firestore
-
-File Parsing: PyMuPDF / PyPDF2
-
-📂 Project Structure
+## 📂 Suggested Folder Structure
+```bash
 Mentesa/
-├── frontend/        # Streamlit app (UI)
-├── backend/         # FastAPI server
-├── llm_agents/      # Bot creation & LLM logic
-├── data/            # Uploaded files & chat history
-├── utils/           # Helper modules (RAG, embeddings, etc.)
-├── requirements.txt # Dependencies
+├── frontend/ # UI (Streamlit or React)
+├── backend/ # FastAPI / Flask server
+├── llm_agents/ # Bot creation logic
+├── data/ # User files (PDFs, notes, etc.)
+├── utils/ # Helper modules (RAG, embeddings, etc.)
+├── requirements.txt
 └── README.md
+```
 
-🚀 Getting Started
-1. Clone the repo
+## 🚀 Getting Started
+
+1. Clone the repo:
+```bash
 git clone https://github.com/Mayurkoli8/Mentesa.git
-cd Mentesa
+git checkout v4
+cd mentesa
+```
 
-2. Install dependencies
-pip install -r requirements.txt
+## 📦 Installation
 
-3. Run the app
-streamlit run frontend/app.py
+```bash
+git clone git clone https://github.com/Mayurkoli8/Mentesa.git
+git checkout v4
+cd mentesa
+pip install -r requirements.txt                                        
+streamlit frontend/run app.py
+cd backend
+uvicorn main:app --reload   
+```
+⚙️ Requirements (requirements.txt)
+streamlit
 
-⚙️ Requirements
-
-Streamlit
-
-Ollama
- with Mistral/Mixtral installed
-
-Firebase project (Firestore enabled)
-
-📦 Roadmap
-
- Multi-bot support
-
- Firebase integration for storage
-
- Real-time collaboration (share bots)
-
- Custom training & fine-tuning (LoRA)
-
- React-based frontend
+**Download Ollama + Mistral to run the app**
 
 📄 License
-
-Currently unlicensed (all rights reserved).
+No License Yet
 
 🤝 Contributing
+Fork the repository
 
-1. Fork the repo
+Create a feature branch (git checkout -b feature/my-feature)
 
-2. Create a feature branch:
-"""bash
-git checkout -b feature/my-feature
-"""
+Commit your changes (git commit -m 'Add something')
 
-3. Commit changes:
-"""bash
-git commit -m "Add my feature"
-"""
-
-4. Push & open a pull request
+Push and create a pull request
 
 📬 Contact
-
-👤 Mayur Koli
-📧 Email: kolimohit9595@gmail.com
+Name: Mayur Koli 
+Email: kolimohit9595@gmail.com
