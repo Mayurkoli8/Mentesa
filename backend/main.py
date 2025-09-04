@@ -11,6 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 import google.generativeai as genai
+from datetime import datetime
+
 
 from fastapi.staticfiles import StaticFiles
 
@@ -142,7 +144,7 @@ def create_bot(bot: BotCreate):
         "name": bot.name,
         "personality": bot.personality or "",
         "config": bot.config or {},
-        "created_at": uuid.uuid1().ctime() if hasattr(uuid, "uuid1") else None,
+        "created_at": datetime.now().isoformat(),
         "api_key": generate_api_key(),
     }
     bots.append(new_bot)
@@ -214,7 +216,10 @@ def chat(req: ChatRequest,
     if not bot:
         raise HTTPException(status_code=401, detail="Invalid API key or bot_id")
 
-    # Continue with Gemini response...
+    # ------------------------------
+    # ✅ Use GEMINI_API_KEY here
+    # ------------------------------
+    genai.configure(api_key=GEMINI_API_KEY)
 
     # Build prompt
     name = bot["name"]
@@ -222,7 +227,6 @@ def chat(req: ChatRequest,
     prompt = f"You are '{name}'. Personality: {personality}\nUser: {req.message}"
 
     try:
-        genai.configure(api_key=bot["api_key"])
         model = genai.GenerativeModel("gemini-2.5-pro")
         response = model.generate_content(prompt)
 
