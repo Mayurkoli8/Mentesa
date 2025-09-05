@@ -294,7 +294,7 @@ def bot_management_ui():
 
     api_key = selected_bot_info.get("api_key")
     if api_key:
-        embed_code = f'<script src="{BACKEND}/static/embed.js" data-backend-url="{BACKEND}" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
+        embed_code = f'<script src="{BACKEND}/static/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
         st.code(embed_code, language="html")
 
 
