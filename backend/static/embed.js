@@ -4,7 +4,7 @@
   // --- Use optional backend URL ---
   const backend =
     scriptTag.getAttribute("data-backend-url") ||
-    scriptTag.src.split("/static/embed.js")[0];
+    scriptTag.src.split("/embed.js")[0];
   const apiKey = scriptTag.getAttribute("data-api-key");
   const botName = scriptTag.getAttribute("data-bot-name") || "Mentesa Bot";
 
