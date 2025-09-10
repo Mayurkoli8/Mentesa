@@ -42,29 +42,23 @@ def create_and_save_bot():
     st.write("Describe the bot you want, and we'll generate it with AI.")
 
     prompt = st.text_area("🤔 What type of bot do you want?")
+    url = st.text_input("🌐 (Optional) Website URL for the bot to ingest (include https://)")
+
 
     if st.button("🚀 Create Bot"):
         if not prompt.strip():
             st.warning("Please enter a prompt before generating.")
             return
+        payload = {"prompt": prompt.strip(), "url": url.strip() if url.strip() else None}
 
         with st.spinner("Generating bot..."):
-            cfg = generate_bot_config_gemini(prompt)
+            try:
+                response = requests.post(f"{BACKEND}/bots", json=payload, timeout=120)
+            except Exception as e:
+                st.error(f"Request failed: {e}")
+                return
 
-        if not cfg or "error" in cfg:
-            st.error(f"Failed to generate bot: {cfg.get('error', 'No data returned')}")
-            return
-
-        response = requests.post(
-            f"{BACKEND}/bots",
-            json={
-                "name": cfg["name"],
-                "personality": cfg["personality"],
-                "config": cfg.get("settings", {})
-            }
-        )
-
-        if response.status_code == 200:
+        if response.status_code == 200 or response.status_code == 201:
             data = response.json()
             st.success(f"✅ Bot '{cfg['name']}' created and saved!")
         else:

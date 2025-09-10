@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 from datetime import datetime
 
+from utils.scraper import scrape_website
 
 from fastapi.staticfiles import StaticFiles
 
@@ -86,7 +87,9 @@ app.add_middleware(
 # Models
 # -------------------------------------------------
 class BotCreate(BaseModel):
-    name: str
+    prompt: Optional[str] = ""
+    url: Optional[str] = None
+    name: Optional[str] = None
     personality: Optional[str] = ""
     config: Dict[str, Any] = Field(default_factory=dict)
 
@@ -137,16 +140,61 @@ def get_bot(bot_id: str):
         raise HTTPException(status_code=404, detail="Bot not found")
     return sanitize_public(b)
 
+
 @app.post("/bots", response_model=Dict[str, Any])
 def create_bot(bot: BotCreate):
+    site_text = ""
+    if bot.url:
+        try:
+            site_text = scrape_website(bot.url)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to scrape site: {e}")
+
+    # ----------------------
+    # Call Gemini to build bot config
+    # ----------------------
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-2.5-pro")
+
+    prompt_text = f"""
+    You are creating a bot based on this description: "{bot.prompt}"
+
+    Website content:
+    {site_text}
+
+    Rules:
+    - Only use the website content.
+    - If information is missing, say 'Not mentioned on the website'.
+    - Do NOT invent or hallucinate.
+    - Output JSON with fields: name, personality, settings.
+    """
+
+    try:
+        response = model.generate_content(prompt_text)
+        raw = response.text
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gemini error: {e}")
+
+    import json
+    try:
+        cfg = json.loads(raw)
+    except Exception:
+        cfg = {
+            "name": bot.name or "New Bot",
+            "personality": bot.personality or "No personality provided",
+            "settings": {}
+        }
+
     new_bot = {
         "id": str(uuid.uuid4()),
-        "name": bot.name,
-        "personality": bot.personality or "",
-        "config": bot.config or {},
+        "name": cfg.get("name", bot.name or "Unnamed Bot"),
+        "personality": cfg.get("personality", bot.personality or ""),
+        "config": cfg.get("settings", bot.config or {}),
         "created_at": datetime.now().isoformat(),
         "api_key": generate_api_key(),
+        "scraped_text": site_text,  # 🔑 store raw scraped content
     }
+
     bots.append(new_bot)
     save_bots(bots)
     return {
@@ -224,7 +272,8 @@ def chat(req: ChatRequest,
     # Build prompt
     name = bot["name"]
     personality = bot.get("personality", "")
-    prompt = f"You are '{name}'. Personality: {personality}\nUser: {req.message}"
+    scraped=bot.get("scraped_content","")
+    prompt = f"You are '{name}'. Personality: {personality}\n Here is information from the website (if available):{scraped}, Only answer based on the website content. User: {req.message}"
 
     try:
         model = genai.GenerativeModel("gemini-2.5-pro")

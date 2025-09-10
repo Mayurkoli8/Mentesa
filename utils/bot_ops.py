@@ -1,5 +1,6 @@
 import json
 import os
+import requests
 
 # Path to the bots JSON store
 BOTS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "bots.json")
@@ -49,3 +50,4 @@ def update_personality(bot_id: str, new_personality):
     if bot_id in bots:
         bots[bot_id]["personality"] = new_personality
         save_bots(bots)
+
