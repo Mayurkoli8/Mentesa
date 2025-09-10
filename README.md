@@ -53,9 +53,13 @@ Mentesa/
 1. Clone the repo:
 ```bash
 git clone https://github.com/Mayurkoli8/Mentesa.git
-git checkout v4
 cd mentesa
+git checkout v4
 ```
+
+## Importand when runing the app ofline on streamlit 
+1. Get a Google Gemini API key.
+2. Put it in .streamlit/secrets.toml OR in streamlit secrete as GEMINI_API_KEY.
 
 ## 📦 Installation
 
