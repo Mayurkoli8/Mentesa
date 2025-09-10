@@ -16,7 +16,7 @@ from utils.chat_ops import load_chat_history, save_chat_history, clear_chat_hist
 from ui import apply_custom_styles, show_header 
 
 from utils.firebase_config import db
-BACKEND="https://mentesa-2kf8.onrender.com"
+BACKEND="https://mentesav6.onrender.com"
 
 
 # --- PAGE CONFIG ---
