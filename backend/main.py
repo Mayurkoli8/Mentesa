@@ -143,6 +143,7 @@ def get_bot(bot_id: str):
 
 @app.post("/bots", response_model=Dict[str, Any])
 def create_bot(bot: BotCreate):
+    print("DEBUG bot payload:", bot.dict())
     site_text = ""
     if bot.url:
         try:
