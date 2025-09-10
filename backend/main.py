@@ -87,10 +87,10 @@ app.add_middleware(
 # Models
 # -------------------------------------------------
 class BotCreate(BaseModel):
-    prompt: Optional[str] = ""
-    url: Optional[str] = None
     name: Optional[str] = None
     personality: Optional[str] = ""
+    prompt: Optional[str] = None
+    url: Optional[str] = None
     config: Dict[str, Any] = Field(default_factory=dict)
 
 class BotPublic(BaseModel):
@@ -192,7 +192,7 @@ def create_bot(bot: BotCreate):
         "config": cfg.get("settings", bot.config or {}),
         "created_at": datetime.now().isoformat(),
         "api_key": generate_api_key(),
-        "scraped_text": site_text,  # 🔑 store raw scraped content
+        "scraped_content": site_text,  # 🔑 store raw scraped content
     }
 
     bots.append(new_bot)
