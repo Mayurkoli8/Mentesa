@@ -282,7 +282,7 @@ def chat(req: ChatRequest,
     # Build prompt
     name = bot["name"]
     personality = bot.get("personality", "")
-    scraped=bot.get("scraped_content","")
+    scraped=bot.get("scraped_text","")
     prompt = f"You are '{name}'. Personality: {personality}\n Here is information from the website (if available):{scraped}, Only answer based on the website content. User: {req.message}"
 
     try:
