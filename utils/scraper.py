@@ -8,14 +8,6 @@ def scrape_website(url: str, max_chars: int = 15000) -> str:
     response = requests.get(url, headers=headers, timeout=15)
     response.raise_for_status()
 
-    try:
-        # Use readability to extract main content
-        doc = Document(response.text)
-        main_html = doc.summary()
-        soup = BeautifulSoup(main_html, "html.parser")
-        text = "\n".join(soup.stripped_strings)
-    except Exception:
-        soup = BeautifulSoup(response.text, "html.parser")
-        text = "\n".join(soup.stripped_strings)
-
+    soup = BeautifulSoup(response.text, "html.parser")
+    text = "\n".join(soup.stripped_strings)
     return text[:max_chars]
