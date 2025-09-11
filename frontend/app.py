@@ -233,10 +233,23 @@ def chat_interface():
 
     # --- Generate bot reply ---
     if st.session_state.typing:
-        reply = requests.post(
+        response = requests.post(
             f"{BACKEND}/chat",
-            json={"bot_id": selected_bot_id, "message": history[-1]["content"]}
-        ).json()["reply"]
+            json={"bot_id": selected_bot_id, "message": history[-1]["content"]},
+            timeout=60
+        )
+        
+        if response.status_code != 200:
+            st.error(f"❌ Chat request failed: {response.status_code}\n{response.text}")
+            return
+        
+        try:
+            data = response.json()
+            reply = data.get("reply", "⚠️ No reply received")
+        except Exception as e:
+            st.error(f"❌ Failed to parse JSON: {e}\nRaw response:\n{response.text}")
+            return
+        
         
         history.append({"role": "bot", "content": reply})
         st.session_state.history = history
