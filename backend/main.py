@@ -156,24 +156,40 @@ def create_bot(bot: BotCreate):
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel("gemini-2.5-pro")
 
-    prompt_text = f"""
-    You are creating a bot from this description: "{bot.prompt}"
+    if site_text.strip():
+        prompt_text = f"""
+        You are creating a bot from this description: "{bot.prompt}"
 
-    Website content:
-    {site_text}
+        Website content:
+        {site_text}
 
-    Rules:
-    - Use ONLY the website content and the description.
-    - If something is missing, write "Not mentioned on the website".
-    - Do NOT hallucinate or invent projects/skills.
-    - Respond ONLY with valid JSON in this format:
+        Rules:
+        - Use BOTH the website content and the description.
+        - If something is missing in both, write "Not mentioned on the website".
+        - Do NOT hallucinate or invent things.
+        - Respond ONLY with valid JSON in this format:
 
-    {{
-      "name": "string",
-      "personality": "string",
-      "settings": {{}}
-    }}
-    """
+        {{
+          "name": "string",
+          "personality": "string",
+          "settings": {{}}
+        }}
+        """
+    else:
+        prompt_text = f"""
+        You are creating a bot from this description: "{bot.prompt}"
+
+        Rules:
+        - Use ONLY the description (no website is provided).
+        - Do NOT hallucinate extra things.
+        - Respond ONLY with valid JSON in this format:
+
+        {{
+          "name": "string",
+          "personality": "string",
+          "settings": {{}}
+        }}
+        """
 
     import re, json
     try:
