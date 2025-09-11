@@ -41,15 +41,26 @@ def create_and_save_bot():
     st.subheader("✨ Create Your Bot")
     st.write("Describe the bot you want, and we'll generate it with AI.")
 
+    name = st.text_input("📝 Bot Name (leave empty to auto-generate)")
     prompt = st.text_area("🤔 What type of bot do you want?")
     url = st.text_input("🌐 (Optional) Website URL for the bot to ingest (include https://)")
-
 
     if st.button("🚀 Create Bot"):
         if not prompt.strip():
             st.warning("Please enter a prompt before generating.")
             return
-        payload = {"prompt": prompt.strip(), "url": url.strip() if url.strip() else None}
+
+        # Auto-generate name if not given
+        import time
+        bot_name = name.strip() if name.strip() else f"Bot_{int(time.time())}"
+
+        payload = {
+            "name": bot_name,
+            "prompt": prompt.strip(),
+            "url": url.strip() if url.strip() else None,
+            "config": {}
+        }
+
 
         with st.spinner("Generating bot..."):
             try:
@@ -58,9 +69,10 @@ def create_and_save_bot():
                 st.error(f"Request failed: {e}")
                 return
 
-        if response.status_code == 200 or response.status_code == 201:
+        if response.status_code in (200, 201):
             data = response.json()
-            st.success(f"✅ Bot '{cfg['name']}' created and saved!")
+            bot_name = data["bot"]["name"]
+            st.success(f"✅ Bot '{bot_name}' created and saved!")
         else:
             st.error(f"Failed to save bot: {response.text}")
 

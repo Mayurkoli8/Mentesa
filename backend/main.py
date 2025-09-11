@@ -143,7 +143,6 @@ def get_bot(bot_id: str):
 
 @app.post("/bots", response_model=Dict[str, Any])
 def create_bot(bot: BotCreate):
-    print("DEBUG bot payload:", bot.dict())
     site_text = ""
     if bot.url:
         try:
@@ -158,42 +157,52 @@ def create_bot(bot: BotCreate):
     model = genai.GenerativeModel("gemini-2.5-pro")
 
     prompt_text = f"""
-    You are creating a bot based on this description: "{bot.prompt}"
+    You are creating a bot from this description: "{bot.prompt}"
 
     Website content:
     {site_text}
 
     Rules:
-    - Only use the website content.
-    - If information is missing, say 'Not mentioned on the website'.
-    - Do NOT invent or hallucinate.
-    - Output JSON with fields: name, personality, settings.
+    - Use ONLY the website content and the description.
+    - If something is missing, write "Not mentioned on the website".
+    - Do NOT hallucinate or invent projects/skills.
+    - Respond ONLY with valid JSON in this format:
+
+    {{
+      "name": "string",
+      "personality": "string",
+      "settings": {{}}
+    }}
     """
 
+    import re, json
     try:
         response = model.generate_content(prompt_text)
-        raw = response.text
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gemini error: {e}")
+        raw = response.text.strip()
 
-    import json
-    try:
-        cfg = json.loads(raw)
-    except Exception:
+        # ✅ Extract JSON only
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            cfg = json.loads(match.group(0))
+        else:
+            raise ValueError("No JSON found in Gemini response")
+
+    except Exception as e:
         cfg = {
-            "name": bot.name or "New Bot",
-            "personality": bot.personality or "No personality provided",
+            "name": bot.name or "Unnamed Bot",
+            "personality": "Not mentioned on the website",
             "settings": {}
         }
 
     new_bot = {
         "id": str(uuid.uuid4()),
         "name": cfg.get("name", bot.name or "Unnamed Bot"),
-        "personality": cfg.get("personality", bot.personality or ""),
+        "personality": cfg.get("personality", "Not mentioned on the website"),
         "config": cfg.get("settings", bot.config or {}),
         "created_at": datetime.now().isoformat(),
         "api_key": generate_api_key(),
-        "scraped_content": site_text,  # 🔑 store raw scraped content
+        "scraped_text": site_text,
+        "url": bot.url  # ✅ store URL too
     }
 
     bots.append(new_bot)
