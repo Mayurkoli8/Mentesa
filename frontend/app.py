@@ -55,7 +55,7 @@ def create_and_save_bot():
         bot_name = name.strip() if name.strip() else f"Bot_{int(time.time())}"
 
         payload = {
-            "name": bot_name,
+            "name": bot_name.strip(),
             "prompt": prompt.strip(),
             "url": url.strip() if url.strip() else None,
             "config": {}
