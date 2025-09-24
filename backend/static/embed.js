@@ -57,6 +57,11 @@
   sendBtn.style.cssText =
     "margin-left:6px; padding:0 16px; border:none; border-radius:50%; cursor:pointer; background:#007bff; color:#fff; font-size:16px;";
 
+  const footer = document.createElement("div");
+  footer.style.cssText =
+    "background:#fff; color:#000; padding:12px; text-align:center; font-weight:bold; font-size:16px";
+  footer.textContent = botName;
+
   inputBox.appendChild(input);
   inputBox.appendChild(sendBtn);
   widget.appendChild(header);
