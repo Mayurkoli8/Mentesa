@@ -48,7 +48,7 @@
 
   const input = document.createElement("input");
   input.type = "text";
-  input.placeholder = "Type a message...";
+  input.placeholder = "Type a message now...";
   input.style.cssText =
     "flex:1; padding:10px; border-radius:20px; border:1px solid #ccc; outline:none; font-size:14px;";
 
