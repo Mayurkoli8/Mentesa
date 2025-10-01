@@ -16,12 +16,12 @@ from utils.chat_ops import load_chat_history, save_chat_history, clear_chat_hist
 from ui import apply_custom_styles, show_header 
 
 from utils.firebase_config import db
-BACKEND="https://mentesav6.onrender.com"
+BACKEND="https://mentesav7.onrender.com"
 
 
 # --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="Mentesa",
+    page_title="Mentesa V7",
     page_icon="🧠",
     layout="centered",
     initial_sidebar_state="expanded"
@@ -41,7 +41,6 @@ def create_and_save_bot():
     st.subheader("✨ Create Your Bot")
     st.write("Describe the bot you want, and we'll generate it with AI.")
 
-    name = st.text_input("📝 Bot Name (leave empty to auto-generate)")
     prompt = st.text_area("🤔 What type of bot do you want?")
     url = st.text_input("🌐 (Optional) Website URL for the bot to ingest (include https://)")
 
