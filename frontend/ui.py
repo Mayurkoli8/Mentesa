@@ -53,14 +53,17 @@ def apply_custom_styles():
     color: #e2e8f0;
     border: 1px solid #334155;
 }
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
 </style>
     """, unsafe_allow_html=True)
 
-hide_header = """
-    <style>
-    footer {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    </style>
-"""
-st.markdown(hide_header, unsafe_allow_html=True)
+# hide_header="""
+#     <style>
+#     footer {visibility: hidden;}
+#     #MainMenu {visibility: hidden;}
+#     header {visibility: hidden;}
+#     </style>
+# """
+# st.markdown(hide_header, unsafe_allow_html=True)
