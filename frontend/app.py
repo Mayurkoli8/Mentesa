@@ -41,6 +41,7 @@ def create_and_save_bot():
     st.subheader("✨ Create Your Bot")
     st.write("Describe the bot you want, and we'll generate it with AI.")
 
+    name="Mentesa_Bot"
     prompt = st.text_area("🤔 What type of bot do you want?")
     url = st.text_input("🌐 (Optional) Website URL for the bot to ingest (include https://)")
 
