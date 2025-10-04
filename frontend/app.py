@@ -26,6 +26,13 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="expanded"
 )
+
+st.markdown("""
+    <meta name="description" content="Mentesa – A no-code platform to create, manage, and chat with your own AI bots.">
+    <meta name="keywords" content="AI bots, chatbot builder, Mentesa, generative AI, Streamlit">
+""", unsafe_allow_html=True)
+
+
 # Apply styles
 apply_custom_styles()
 
