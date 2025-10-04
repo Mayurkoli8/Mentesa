@@ -60,7 +60,7 @@
   const footer = document.createElement("div");
   footer.style.cssText =
     "background:#007bff; padding:5px 0px; color:#fff; text-align:center; font-size:12px;";
-  footer.innerHTML = `Powered by <a href="https://mentesav6.streamlit.app" target="_blank" style="color:#000; text-decoration:none;"> Mentesa Family</a> | <a href="https://mentesav6.streamlit.app" target="_blank" style="color:#000; text-decoration:none;">Privacy Policy</a>`;
+  footer.innerHTML = `Powered by <a href="https://mentesa.live" target="_blank" style="color:#000; text-decoration:none;"> Mentesa Family</a> | <a href="https://mentesav6.streamlit.app" target="_blank" style="color:#000; text-decoration:none;">Privacy Policy</a>`;
 
   inputBox.appendChild(input);
   inputBox.appendChild(sendBtn);
