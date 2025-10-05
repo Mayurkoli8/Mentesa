@@ -22,7 +22,7 @@ BACKEND="https://mentesav7.onrender.com"
 
 # --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="Mentesa V7 mayur ",
+    page_title="Mentesa V7",
     page_icon="🧠",
     layout="centered",
     initial_sidebar_state="expanded"
@@ -343,7 +343,7 @@ def bot_management_ui():
 
 # ---------------- MAIN APP ----------------
 def main():
-    tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots"])
+    tabs = st.tabs(["➕ Create mayur Bot", "🛠️ Manage Bots", "💬 My Bots"])
 
     with tabs[0]:
         create_and_save_bot()
