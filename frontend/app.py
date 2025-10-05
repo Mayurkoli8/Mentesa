@@ -14,7 +14,7 @@ from streamlit.components.v1 import html as components_html
 from utils.llm import generate_bot_config_gemini, chat_with_gemini
 from utils.bot_ops import load_bots, save_bots, delete_bot, rename_bot, update_personality
 from utils.chat_ops import load_chat_history, save_chat_history, clear_chat_history
-from ui import apply_custom_styles, show_header 
+from ui import apply_custom_styles, show_header, logo_animation
 
 from utils.firebase_config import db
 BACKEND="https://mentesav7.onrender.com"
@@ -37,8 +37,12 @@ st.markdown("""
 # Apply styles
 apply_custom_styles()
 
-# Show header
-show_header()
+# Logo Mentesa animation
+logo_animation()
+
+# # Show header
+# show_header()
+
 # ---------------- BOT CREATION ----------------
 import uuid
 import streamlit as st
