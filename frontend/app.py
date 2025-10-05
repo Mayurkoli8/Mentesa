@@ -4,6 +4,7 @@ import json
 import sys
 import os
 import requests
+import google.generativeai
 
 
 # Add root dir so utils/ can be imported
