@@ -343,7 +343,7 @@ def bot_management_ui():
 
 # ---------------- MAIN APP ----------------
 def main():
-    tabs = st.tabs(["➕ Create mayur Bot", "🛠️ Manage Bots", "💬 My Bots"])
+    tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots"])
 
     with tabs[0]:
         create_and_save_bot()
