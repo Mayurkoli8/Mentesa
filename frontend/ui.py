@@ -70,6 +70,8 @@ footer {visibility: hidden;}
 
 import streamlit.components.v1 as components
 
+import streamlit.components.v1 as components
+
 def logo_animation():
     html_code = """
     <!DOCTYPE html>
@@ -85,7 +87,7 @@ def logo_animation():
         background: transparent;
         display: flex;
         flex-direction: column;
-        justify-content: flex-start; /* align to top */
+        justify-content: flex-start;
         align-items: center;
         width: 100%;
         height: 100%;
@@ -93,20 +95,19 @@ def logo_animation():
         font-family: 'Orbitron', sans-serif;
       }
       #logo-container {
-        width: 100%;
+        width: 90%;
         max-width: 600px;
         text-align: center;
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
-        padding-top: 5vw; /* adjust top space */
-        margin-block-start: -50px;
+        padding-top: 5vw; /* responsive top spacing */
       }
       #logo-text {
         margin-top: 2vw;
-font-size: 8vw;      /* responsive */
-max-font-size: 48px; /* cap for desktop */
-min-font-size: 20px; /* cap for mobile */
+        font-size: 8vw;      /* responsive font size */
+        max-font-size: 48px;
+        min-font-size: 20px;
         opacity: 0;
         letter-spacing: 3px;
         background: linear-gradient(90deg, #0ff, #8a2be2);
@@ -114,12 +115,12 @@ min-font-size: 20px; /* cap for mobile */
         -webkit-text-fill-color: transparent;
         text-shadow: 0 0 10px #0ff, 0 0 20px #8a2be2;
         transition: opacity 2s ease;
+        margin-bottom: 5vw;  /* extra space below text, scales on mobile */
       }
       canvas {
         width: 100% !important;
         height: auto !important;
         display: block;
-        margin-bottom: 0px; /* space before text */
       }
     </style>
     </head>
@@ -129,90 +130,91 @@ min-font-size: 20px; /* cap for mobile */
       <div id="logo-text">Mentesa</div>
     </div>
     <script>
-    const canvas = document.getElementById('network');
-    const ctx = canvas.getContext('2d');
+      const canvas = document.getElementById('network');
+      const ctx = canvas.getContext('2d');
 
-    function resizeCanvas() {
-        canvas.width = canvas.parentElement.offsetWidth;
-        canvas.height = canvas.parentElement.offsetWidth * 0.5; // maintain aspect ratio
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    const nodes = [];
-    const maxNodes = 20;
-    const radius = 6;
-    const connections = [];
-
-    for (let i = 0; i < maxNodes; i++) {
-      nodes.push({
-        x: Math.random() * canvas.width * 0.5 + canvas.width * 0.25,
-        y: Math.random() * canvas.height * 0.5 + canvas.height * 0.25,
-        alpha: 0
-      });
-    }
-
-    for (let i = 0; i < maxNodes; i++) {
-      for (let j = i + 1; j < maxNodes; j++) {
-        if (Math.random() < 0.25) connections.push({i, j, alpha: 0});
+      function resizeCanvas() {
+          canvas.width = canvas.parentElement.offsetWidth;
+          canvas.height = canvas.parentElement.offsetWidth * 0.5; // maintain aspect ratio
       }
-    }
 
-    let nodeIndex = 0;
-    let connIndex = 0;
+      window.addEventListener('resize', resizeCanvas);
+      resizeCanvas(); // initial call
 
-    function animateNodes() {
-      if (nodeIndex < nodes.length) {
-        nodes[nodeIndex].alpha = 1;
-        nodeIndex++;
-        draw();
-        setTimeout(animateNodes, 150);
-      } else {
-        setTimeout(animateConnections, 300);
+      const nodes = [];
+      const maxNodes = 20;
+      const radius = 6;
+      const connections = [];
+
+      for (let i = 0; i < maxNodes; i++) {
+        nodes.push({
+          x: Math.random() * canvas.width * 0.5 + canvas.width * 0.25,
+          y: Math.random() * canvas.height * 0.5 + canvas.height * 0.25,
+          alpha: 0
+        });
       }
-    }
 
-    function animateConnections() {
-      if (connIndex < connections.length) {
-        connections[connIndex].alpha = 1;
-        connIndex++;
-        draw();
-        setTimeout(animateConnections, 100);
-      } else {
-        document.getElementById('logo-text').style.opacity = 1;
+      for (let i = 0; i < maxNodes; i++) {
+        for (let j = i + 1; j < maxNodes; j++) {
+          if (Math.random() < 0.25) connections.push({i, j, alpha: 0});
+        }
       }
-    }
 
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let nodeIndex = 0;
+      let connIndex = 0;
 
-      connections.forEach(conn => {
-        const n1 = nodes[conn.i];
-        const n2 = nodes[conn.j];
-        ctx.beginPath();
-        ctx.moveTo(n1.x, n1.y);
-        ctx.lineTo(n2.x, n2.y);
-        ctx.strokeStyle = `rgba(0, 255, 255, ${conn.alpha})`;
-        ctx.lineWidth = 1.5;
-        ctx.shadowColor = 'cyan';
-        ctx.shadowBlur = 10;
-        ctx.stroke();
-      });
+      function animateNodes() {
+        if (nodeIndex < nodes.length) {
+          nodes[nodeIndex].alpha = 1;
+          nodeIndex++;
+          draw();
+          setTimeout(animateNodes, 150);
+        } else {
+          setTimeout(animateConnections, 300);
+        }
+      }
 
-      nodes.forEach(node => {
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(0, 255, 255, ${node.alpha})`;
-        ctx.shadowColor = 'cyan';
-        ctx.shadowBlur = 12;
-        ctx.fill();
-      });
-    }
+      function animateConnections() {
+        if (connIndex < connections.length) {
+          connections[connIndex].alpha = 1;
+          connIndex++;
+          draw();
+          setTimeout(animateConnections, 100);
+        } else {
+          document.getElementById('logo-text').style.opacity = 1;
+        }
+      }
 
-    animateNodes();
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        connections.forEach(conn => {
+          const n1 = nodes[conn.i];
+          const n2 = nodes[conn.j];
+          ctx.beginPath();
+          ctx.moveTo(n1.x, n1.y);
+          ctx.lineTo(n2.x, n2.y);
+          ctx.strokeStyle = `rgba(0, 255, 255, ${conn.alpha})`;
+          ctx.lineWidth = 1.5;
+          ctx.shadowColor = 'cyan';
+          ctx.shadowBlur = 10;
+          ctx.stroke();
+        });
+
+        nodes.forEach(node => {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(0, 255, 255, ${node.alpha})`;
+          ctx.shadowColor = 'cyan';
+          ctx.shadowBlur = 12;
+          ctx.fill();
+        });
+      }
+
+      animateNodes();
     </script>
     </body>
     </html>
     """
-    # Increase height to avoid cutting
-    components.html(html_code, height=700, width=700)
+    # Fully responsive container
+    components.html(html_code, height=0, width=0)
