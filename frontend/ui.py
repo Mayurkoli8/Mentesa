@@ -103,7 +103,7 @@ def logo_animation():
         margin-block-start: -50px;
       }
       #logo-text {
-        margin-top: -50px;
+        margin-top: -40px;
         font-size: 5vw; /* responsive */
         min-font-size: 20px;
         max-font-size: 48px;
@@ -215,4 +215,4 @@ def logo_animation():
     </html>
     """
     # Increase height to avoid cutting
-    components.html(html_code, height=250, width=700)
+    components.html(html_code, height=200, width=700)
