@@ -102,6 +102,7 @@ def logo_animation():
         flex-direction: column;
         justify-content: flex-start;
         padding-top: 5vw; /* responsive top spacing */
+        min-height:60vw;
       }
       #logo-text {
         margin-top: 2vw;
@@ -217,4 +218,4 @@ def logo_animation():
     </html>
     """
     # Fully responsive container
-    components.html(html_code, height=0, width=700)
+    components.html(html_code, height=500+400, width=700)
