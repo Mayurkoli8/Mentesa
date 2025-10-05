@@ -1,7 +1,7 @@
 import streamlit as st
 def show_header():
     """Display the Mentesa header with styling"""
-    st.markdown("<h1 style='text-align:center; font-size:2.2rem; font-weight:700; margin-bottom:0.2em;'>Mentesa V7 kidding</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center; font-size:2.2rem; font-weight:700; margin-bottom:0.2em;'>Mentesa V7 kiddi</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center; color: #888; font-size:1.1rem; margin-bottom:2em;'>Your professional multi-bot AI platform</p>", unsafe_allow_html=True)
 
 def apply_custom_styles():
