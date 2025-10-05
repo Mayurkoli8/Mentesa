@@ -99,14 +99,14 @@ def logo_animation():
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
-        padding-top: -100px; /* adjust top space */
+        padding-top: 5vw; /* adjust top space */
         margin-block-start: -50px;
       }
       #logo-text {
-        margin-top: -40px;
-        font-size: 5vw; /* responsive */
-        min-font-size: 20px;
-        max-font-size: 48px;
+        margin-top: 2vw;
+font-size: 8vw;      /* responsive */
+max-font-size: 48px; /* cap for desktop */
+min-font-size: 20px; /* cap for mobile */
         opacity: 0;
         letter-spacing: 3px;
         background: linear-gradient(90deg, #0ff, #8a2be2);
@@ -215,4 +215,4 @@ def logo_animation():
     </html>
     """
     # Increase height to avoid cutting
-    components.html(html_code, height=200, width=700)
+    components.html(html_code, height=700, width=700)
