@@ -217,4 +217,4 @@ def logo_animation():
     </html>
     """
     # Fully responsive container
-    components.html(html_code, height=300, width=0)
+    components.html(html_code, height=700, width=700)
