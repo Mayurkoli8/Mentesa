@@ -21,7 +21,7 @@ BACKEND="https://mentesav7.onrender.com"
 # --- PAGE CONFIG ---
 st.set_page_config(
     page_title="Mentesa V7",
-    page_icon="🧠",
+    page_icon=st.markdown("""<link rel="icon" href="logo code.png" type="image/x-icon">""",unsafe_allow_html=True),
     layout="centered",
     initial_sidebar_state="expanded"
 )
