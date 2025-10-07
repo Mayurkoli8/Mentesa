@@ -323,52 +323,52 @@ def bot_management_ui():
     st.markdown("---")
     st.subheader("📂 Upload RAG Files")
 
+    import io
+    from utils.file_handle import upload_file  # top-level import is fine
+
     # Upload Files
     uploaded_file = st.file_uploader("Upload a RAG File", key=f"file_{selected_bot_id}")
     if uploaded_file:
         filename = uploaded_file.name
         flag = f"uploaded_{selected_bot_id}_{filename}"
 
-        # Only process when flag not set (prevents double-processing)
+        # Prevent double-processing across Streamlit reruns
         if not st.session_state.get(flag):
-            # read bytes once
-            data_bytes = uploaded_file.read()
+            try:
+                # Read bytes once
+                data_bytes = uploaded_file.read()
 
-            # extract text depending on file type
-            content = ""
-            if filename.lower().endswith(".pdf"):
-                try:
+                # extract text depending on file type
+                content = ""
+                if filename.lower().endswith(".pdf"):
                     from PyPDF2 import PdfReader
                     reader = PdfReader(io.BytesIO(data_bytes))
-                    # combine pages:
                     content = "\n".join([p.extract_text() or "" for p in reader.pages])
-                except Exception as e:
-                    # fallback: try decode as text (rare), but do NOT store raw pdf bytes
+                else:
                     try:
                         content = data_bytes.decode("utf-8")
                     except Exception:
                         content = data_bytes.decode("latin-1", errors="ignore")
-            else:
-                # text-like files
-                try:
-                    content = data_bytes.decode("utf-8")
-                except Exception:
-                    content = data_bytes.decode("latin-1", errors="ignore")
 
-            if not content.strip():
-                content = "-"  # sentinel for "no usable text"
+                if not content.strip():
+                    content = "-"
 
-            # mark as processing so reruns won't re-process
-            st.session_state[flag] = True
+                # mark uploaded so reruns don't re-run
+                st.session_state[flag] = True
 
-            # upload (upload_file will sanitize + replace existing)
-            upload_file(selected_bot_id, filename, content)
+                # call upload helper
+                upload_file(selected_bot_id, filename, content)
 
-            st.success(f"Uploaded '{filename}'")
-            st.rerun()
+                st.success(f"Uploaded '{filename}'")
+                st.experimental_rerun()
 
+            except Exception as e:
+                # Show the exact exception in UI (useful while debugging)
+                st.error(f"Upload failed: {type(e).__name__}: {e}")
+                # ensure flag not set so user can retry
+                if flag in st.session_state:
+                    del st.session_state[flag]
         else:
-            # If flag set but file is now present in Firestore we will clear it below
             st.info("File already uploaded in this session. If you want to re-upload, delete the previous file first.")
 
     # List existing RAG files
