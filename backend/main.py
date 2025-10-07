@@ -6,12 +6,18 @@ import secrets
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 import google.generativeai as genai
 from datetime import datetime
+
+import io
+import docx
+from google.cloud import firestore
+
+db=firestore.Client()
 
 from utils.scraper import scrape_website
 
@@ -25,7 +31,7 @@ from utils.firebase_config import db
 # -------------------------------------------------
 # Init
 # -------------------------------------------------
-app = FastAPI(title="Mentesa API (v1 branch) — Bots & Embeds")
+app = FastAPI(title="Mentesa V8")
 
 # Serve static folder (for embed.js)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -129,6 +135,9 @@ def find_bot_by_api_key(key: str) -> Optional[Dict[str, Any]]:
 # -------------------------------------------------
 # Routes: Bots
 # -------------------------------------------------
+
+
+
 @app.get("/bots", response_model=List[BotPublic])
 def list_bots():
     return [sanitize_public(b) for b in bots]
@@ -238,6 +247,44 @@ def delete_bot(bot_id: str):
         raise HTTPException(status_code=404, detail="Bot not found")
     save_bots(bots)
     return {"message": "Bot deleted"}
+
+
+@app.post("/bots/{bot_id}/upload_file")
+async def upload_file(bot_id: str, file: UploadFile = File(...)):
+    content = await file.read()
+    text = ""
+
+    # Extract text from PDF
+    if file.filename.endswith(".pdf"):
+        reader = PdfReader(io.BytesIO(content))
+        for page in reader.pages:
+            if page.extract_text():
+                text += page.extract_text()
+
+    # Extract text from DOCX
+    elif file.filename.endswith(".docx"):
+        doc = docx.Document(io.BytesIO(content))
+        for para in doc.paragraphs:
+            text += para.text + "\n"
+
+    # Extract text from TXT
+    elif file.filename.endswith(".txt"):
+        text = content.decode("utf-8")
+
+    else:
+        raise HTTPException(400, "Unsupported file type. Use PDF, DOCX, or TXT.")
+
+    bot_ref = db.collection("bots").document(bot_id)
+    bot = bot_ref.get()
+    if not bot.exists:
+        raise HTTPException(404, "Bot not found")
+
+    # Append the new file and text to Firestore
+    bot_ref.update({
+        "file_data": firestore.ArrayUnion([{"name": file.filename, "text": text}])
+    })
+
+    return {"message": f"{file.filename} uploaded successfully", "text_length": len(text)}
 
 # -------------------------------------------------
 # Routes: API key management
