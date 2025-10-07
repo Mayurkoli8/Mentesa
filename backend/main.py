@@ -335,26 +335,37 @@ def chat(req: ChatRequest,
     # 3️⃣ Configure Gemini
     genai.configure(api_key=GEMINI_API_KEY)
 
-    # 4️⃣ Gather all context: personality + scraped_text + uploaded files
+    # 4️⃣ Gather all context: personality + URLs + uploaded files
     name = bot.get("name", "Bot")
     personality = bot.get("personality", "")
-    scraped = bot.get("scraped_text", "")
 
-    # Fetch uploaded files from Firestore (RAG files)
-    file_texts = []
-    rag_files = db.collection("bots").document(bot["id"]).collection("rag_files").stream()
-    for f in rag_files:
-        f_data = f.to_dict()
-        file_texts.append(f_data.get("content", ""))  # store text content only
-    
+    # Firestore doc
+    bot_doc = db.collection("bots").document(bot["id"]).get()
+    rag_texts = []
+
+    if bot_doc.exists:
+        data = bot_doc.to_dict()
+
+        # ✅ Original scraped_text (from bot creation)
+        if data.get("scraped_text"):
+            rag_texts.append(data["scraped_text"])
+
+        # ✅ Scraped texts from URLs
+        scraped_texts = data.get("scraped_texts", {})  # dict {url: text}
+        rag_texts.extend(scraped_texts.values())
+
+        # ✅ Uploaded files
+        file_data = data.get("file_data", [])
+        for f in file_data:
+            rag_texts.append(f.get("text", ""))
 
     # Combine all RAG context
-    rag_context = "\n".join([scraped] + file_texts)
+    rag_context = "\n".join(rag_texts)
 
     # 5️⃣ Build prompt
     prompt = (
         f"You are '{name}'. Personality: {personality}\n"
-        f"Here is information from the website and uploaded files (if available):\n{rag_context}\n"
+        f"Here is information from the website URLs and uploaded files (if available):\n{rag_context}\n"
         f"Only answer based on this content. User: {req.message}"
     )
 

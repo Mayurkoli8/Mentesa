@@ -46,7 +46,6 @@ import uuid
 import streamlit as st
 from utils.llm import generate_bot_config_gemini
 
-
 def create_and_save_bot():
     st.subheader("✨ Create Your Bot")
     st.write("Describe the bot you want, and we'll generate it with AI.")
@@ -371,7 +370,7 @@ def bot_management_ui():
             delete_url(selected_bot_id, u)
             st.success(f"Deleted {u}")
             st.rerun()
-    
+
 
     # --- Embed snippet ---
     st.markdown("---")
