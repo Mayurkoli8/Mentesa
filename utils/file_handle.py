@@ -18,19 +18,18 @@ def upload_file(bot_id, file_obj, filename):
 
     return file_url
 
-def add_bot_url(bot_id: str, url: str):
+def scrape_and_add_url(bot_id: str, url: str):
     bot_ref = db.collection("bots").document(bot_id)
     bot_doc = bot_ref.get()
     if not bot_doc.exists:
         raise ValueError("Bot not found")
 
-    bot_data = bot_doc.to_dict()
-
-    # 1️⃣ Scrape the new URL
-    from utils.scraper import scrape_website  # your existing scraper
+    # 1️⃣ Scrape new URL
+    from utils.scraper import scrape_website  # your existing function
     new_content = scrape_website(url)
 
-    # 2️⃣ Append scraped content to existing scraped_text
+    # 2️⃣ Append to existing scraped_text
+    bot_data = bot_doc.to_dict()
     existing_scraped = bot_data.get("scraped_text", "")
     updated_scraped = existing_scraped + "\n\n" + new_content
 
@@ -39,4 +38,3 @@ def add_bot_url(bot_id: str, url: str):
         "scraped_text": updated_scraped,
         "config.urls": firestore.ArrayUnion([url])
     })
-

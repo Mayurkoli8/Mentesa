@@ -352,15 +352,15 @@ def bot_management_ui():
     # --- Website URLs ---
     st.markdown("---")
     st.subheader("🌐 Manage Website URLs")
+    # Add Website URL
     new_url = st.text_input("Add Website URL", key=f"url_{selected_bot_id}")
     if st.button("Add URL", key=f"add_url_{selected_bot_id}"):
-        urls = selected_bot_info.get("config", {}).get("urls", [])
-        if new_url not in urls:
-            urls.append(new_url)
-            db.collection("bots").document(selected_bot_id).update({"config.urls": urls})
-            st.success(f"URL added: {new_url}")
+        if new_url:
+            from utils.file_handle import scrape_and_add_url  # we’ll create this
+            scrape_and_add_url(selected_bot_id, new_url)
+            st.success(f"URL added and content appended: {new_url}")
             st.rerun()
-
+    
     # Show existing URLs
     st.subheader("Current URLs")
     for u in selected_bot_info.get("config", {}).get("urls", []):
