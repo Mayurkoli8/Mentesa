@@ -6,15 +6,36 @@ import io
 from typing import Optional
 
 def safe_text(text: str) -> str:
-    return text.encode("utf-8", errors="replace").decode("utf-8")
+    """
+    Remove lone surrogate codepoints and ensure text is UTF-8 safe for Firestore.
+    - removes any code unit in the surrogate range U+D800..U+DFFF
+    - then encodes with 'replace' to avoid encoding errors and decodes back to str
+    """
+    if text is None:
+        return ""
+    if not isinstance(text, str):
+        # if bytes, try decode safely
+        try:
+            text = text.decode("utf-8")
+        except Exception:
+            try:
+                text = text.decode("latin-1")
+            except Exception:
+                text = str(text)
+
+    # remove lone surrogate code units (prevents "surrogates not allowed")
+    # note: this removes characters in the surrogate range
+    text = re.sub(r'[\uD800-\uDFFF]', '', text)
+
+    # finally ensure any remaining problematic chars are replaced
+    safe = text.encode("utf-8", errors="replace").decode("utf-8")
+    return safe
 
 def upload_file(bot_id: str, filename: str, content: str) -> str:
     """
     Store (or replace) a single file entry in bots/{bot_id}.file_data atomically.
-    - filename: name of uploaded file
-    - content: extracted text (string)
+    `content` should be the extracted text (string). We sanitize it here as well.
     """
-    # sanitize & normalize
     content = safe_text(content or "")
     if not content.strip():
         content = "-"  # sentinel for "no usable text"
@@ -55,6 +76,8 @@ def delete_file(bot_id: str, filename: str) -> bool:
     new_list = [f for f in file_list if f.get("name") != filename]
     bot_ref.update({"file_data": new_list})
     return True
+
+# URL
 
 def delete_url(bot_id: str, url: str):
     bot_ref = db.collection("bots").document(bot_id)

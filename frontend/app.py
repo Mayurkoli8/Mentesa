@@ -324,7 +324,7 @@ def bot_management_ui():
     st.subheader("📂 Upload RAG Files")
 
     import io
-    from utils.file_handle import upload_file  # top-level import is fine
+    from utils.file_handle import upload_file, safe_text   # ensure safe_text is importable
 
     # Upload Files
     uploaded_file = st.file_uploader("Upload a RAG File", key=f"file_{selected_bot_id}")
@@ -332,14 +332,11 @@ def bot_management_ui():
         filename = uploaded_file.name
         flag = f"uploaded_{selected_bot_id}_{filename}"
 
-        # Prevent double-processing across Streamlit reruns
         if not st.session_state.get(flag):
             try:
-                # Read bytes once
                 data_bytes = uploaded_file.read()
-
-                # extract text depending on file type
                 content = ""
+
                 if filename.lower().endswith(".pdf"):
                     from PyPDF2 import PdfReader
                     reader = PdfReader(io.BytesIO(data_bytes))
@@ -350,22 +347,19 @@ def bot_management_ui():
                     except Exception:
                         content = data_bytes.decode("latin-1", errors="ignore")
 
+                # sanitize here as well (removes surrogates)
+                content = safe_text(content)
+
                 if not content.strip():
                     content = "-"
 
-                # mark uploaded so reruns don't re-run
                 st.session_state[flag] = True
-
-                # call upload helper
                 upload_file(selected_bot_id, filename, content)
-
                 st.success(f"Uploaded '{filename}'")
                 st.experimental_rerun()
 
             except Exception as e:
-                # Show the exact exception in UI (useful while debugging)
                 st.error(f"Upload failed: {type(e).__name__}: {e}")
-                # ensure flag not set so user can retry
                 if flag in st.session_state:
                     del st.session_state[flag]
         else:
