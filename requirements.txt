@@ -13,3 +13,4 @@ beautifulsoup4
 readability-lxml
 python-docx
 python-multipart
+PyPDF2
