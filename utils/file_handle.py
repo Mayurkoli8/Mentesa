@@ -6,13 +6,13 @@ db = firestore.client()
 
 def upload_file(bot_id, file, filename):
     """
-    Uploads file content to Firestore under bot's file_data.
-    Stores as plain text (UTF-8 with fallback).
+    Stores uploaded file content directly in Firestore under bot's file_data.
     """
+    # Read content safely
     try:
         content = file.read().decode("utf-8")
     except UnicodeDecodeError:
-        content = file.read().decode("latin-1")  # fallback encoding
+        content = file.read().decode("latin-1")
 
     bot_doc = db.collection("bots").document(bot_id)
     bot_snapshot = bot_doc.get()
@@ -32,7 +32,6 @@ def upload_file(bot_id, file, filename):
     bot_doc.update({"file_data": file_list})
 
     return filename
-
 
 def scrape_and_add_url(bot_id: str, url: str):
     bot_ref = db.collection("bots").document(bot_id)
