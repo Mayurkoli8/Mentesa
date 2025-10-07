@@ -1,30 +1,45 @@
 from firebase_admin import firestore
-import uuid
+from PyPDF2 import PdfReader
 
 db = firestore.client()
 
-def upload_file(bot_id, filename, content):
-    # Load bot document
+def safe_text(text: str) -> str:
+    """Sanitize text to avoid Firestore UnicodeEncodeError."""
+    return text.encode("utf-8", errors="replace").decode("utf-8")
+
+def upload_file(bot_id, file, filename):
+    # 1️⃣ Extract content
+    content = ""
+    if filename.lower().endswith(".pdf"):
+        reader = PdfReader(file)
+        content = "\n".join([page.extract_text() or "" for page in reader.pages])
+    else:
+        try:
+            content = file.read().decode("utf-8")
+        except UnicodeDecodeError:
+            file.seek(0)
+            content = file.read().decode("latin-1")
+    
+    # sanitize
+    content = safe_text(content)
+    if not content.strip():
+        content = "-"
+
+    # 2️⃣ Load bot
     bot_doc = db.collection("bots").document(bot_id)
     bot_snapshot = bot_doc.get()
+    file_list = bot_snapshot.to_dict().get("file_data", []) if bot_snapshot.exists else []
 
-    if bot_snapshot.exists:
-        bot_data = bot_snapshot.to_dict()
-        file_list = bot_data.get("file_data", [])
+    # 3️⃣ Remove old entry if exists
+    file_list = [f for f in file_list if f["name"] != filename]
 
-        # Remove **all previous entries with the same filename**
-        file_list = [f for f in file_list if f["name"] != filename]
-    else:
-        file_list = []
-
-    # Append **single entry** for this file
+    # 4️⃣ Append new file
     file_list.append({"name": filename, "text": content})
 
-    # Write back to Firestore **once**
+    # 5️⃣ Update Firestore once
     bot_doc.update({"file_data": file_list})
 
     return filename
-
 
 
 def scrape_and_add_url(bot_id: str, url: str):
