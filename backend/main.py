@@ -5,6 +5,7 @@ import uuid
 import secrets
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+import firebase_admin
 
 from fastapi import FastAPI, HTTPException, Header, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,9 +16,6 @@ from datetime import datetime
 
 import io
 import docx
-from google.cloud import firestore
-
-db=firestore.Client()
 
 from utils.scraper import scrape_website
 
@@ -254,37 +252,37 @@ async def upload_file(bot_id: str, file: UploadFile = File(...)):
     content = await file.read()
     text = ""
 
-    # Extract text from PDF
+    # Extract text depending on file type
     if file.filename.endswith(".pdf"):
         reader = PdfReader(io.BytesIO(content))
         for page in reader.pages:
             if page.extract_text():
                 text += page.extract_text()
 
-    # Extract text from DOCX
     elif file.filename.endswith(".docx"):
         doc = docx.Document(io.BytesIO(content))
         for para in doc.paragraphs:
             text += para.text + "\n"
 
-    # Extract text from TXT
     elif file.filename.endswith(".txt"):
         text = content.decode("utf-8")
 
     else:
         raise HTTPException(400, "Unsupported file type. Use PDF, DOCX, or TXT.")
 
+    # Reference the bot document in Firestore
     bot_ref = db.collection("bots").document(bot_id)
-    bot = bot_ref.get()
-    if not bot.exists:
+    bot_snapshot = bot_ref.get()
+    if not bot_snapshot.exists:
         raise HTTPException(404, "Bot not found")
 
-    # Append the new file and text to Firestore
+    # Append to file_data array in Firestore
     bot_ref.update({
         "file_data": firestore.ArrayUnion([{"name": file.filename, "text": text}])
     })
 
     return {"message": f"{file.filename} uploaded successfully", "text_length": len(text)}
+
 
 # -------------------------------------------------
 # Routes: API key management
