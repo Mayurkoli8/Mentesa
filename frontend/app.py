@@ -286,16 +286,13 @@ def bot_management_ui():
     bot_options = {f"{b['name']} ({b['id'][:6]})": b['id'] for b in bots}
     selected_label = st.selectbox("Choose a bot", list(bot_options.keys()), key="manage_select")
     selected_bot_id = bot_options[selected_label]
-
-    # Fetch latest bot info
-    bot_doc = db.collection("bots").document(selected_bot_id).get()
-    selected_bot_info = bot_doc.to_dict() if bot_doc.exists else {}
+    selected_bot_info = next(b for b in bots if b['id'] == selected_bot_id)
 
     # --- Bot management columns ---
     col1, col2, col3, col4 = st.columns([2, 3, 1, 1])
 
     # Rename
-    new_name = col1.text_input("Name", value=selected_bot_info.get('name', ""), key=f"name_{selected_bot_id}")
+    new_name = col1.text_input("Name", value=selected_bot_info['name'], key=f"name_{selected_bot_id}")
     if col1.button("✏️ Rename", key=f"rename_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).update({"name": new_name})
         st.success("Renamed!")
@@ -325,31 +322,52 @@ def bot_management_ui():
     # --- RAG Management (Files & URLs) ---
     st.markdown("---")
     st.subheader("📂 Upload RAG Files")
+
+    # Upload Files
     uploaded_file = st.file_uploader("Upload a RAG File", key=f"file_{selected_bot_id}")
     if uploaded_file:
-        from utils.file_handle import upload_file
         filename = uploaded_file.name
+        flag = f"uploaded_{selected_bot_id}_{filename}"
 
-        # Read content safely
-        content = ""
-        if filename.lower().endswith(".pdf"):
-            from PyPDF2 import PdfReader
-            reader = PdfReader(uploaded_file)
-            content = "\n".join([page.extract_text() or "" for page in reader.pages])
+        # Prevent double-processing across Streamlit reruns
+        if not st.session_state.get(flag):
+            # Read bytes once
+            data_bytes = uploaded_file.read()  # bytes
+            content = ""
+
+            if filename.lower().endswith(".pdf"):
+                try:
+                    from PyPDF2 import PdfReader
+                    reader = PdfReader(io.BytesIO(data_bytes))
+                    content = "\n".join([p.extract_text() or "" for p in reader.pages])
+                except Exception as e:
+                    # fallback: try decode as text
+                    try:
+                        content = data_bytes.decode("utf-8")
+                    except Exception:
+                        content = data_bytes.decode("latin-1", errors="ignore")
+            else:
+                try:
+                    content = data_bytes.decode("utf-8")
+                except UnicodeDecodeError:
+                    content = data_bytes.decode("latin-1", errors="ignore")
+
+            # Ensure content not empty
+            if not content.strip():
+                content = "-"
+
+            # Call backend helper (content only)
+            from utils.file_handle import upload_file
+            upload_file(selected_bot_id, filename, content)
+
+            # mark uploaded so reruns don't re-run
+            st.session_state[flag] = True
+
+            st.success(f"Uploaded '{filename}'")
+            st.rerun()
         else:
-            try:
-                content = uploaded_file.read().decode("utf-8")
-            except UnicodeDecodeError:
-                uploaded_file.seek(0)
-                content = uploaded_file.read().decode("latin-1")
+            st.info("File already uploaded in this session. If you want to re-upload, refresh the page or delete the previous file first.")
 
-        if not content.strip():
-            content = "-"
-
-        # Upload file
-        file_url = upload_file(selected_bot_id, filename, content)
-        st.success(f"File uploaded: {file_url}")
-        st.rerun()
 
     # List existing RAG files
     st.subheader("Current RAG Files")
@@ -357,46 +375,78 @@ def bot_management_ui():
     for idx, f in enumerate(file_list):
         col_name, col_del = st.columns([4, 1])
         col_name.write(f["name"])
+
         if col_del.button("🗑️ Delete", key=f"delete_file_{idx}_{selected_bot_id}"):
-            new_list = [x for x in file_list if x["name"] != f["name"]]
-            db.collection("bots").document(selected_bot_id).update({"file_data": new_list})
-            st.success("File deleted!")
+            # call delete helper to remove from Firestore
+            from utils.file_handle import delete_file
+            deleted = delete_file(selected_bot_id, f["name"])
+
+            # also clear the session_state upload-flag so user can re-upload in this session
+            flag = f"uploaded_{selected_bot_id}_{f['name']}"
+            if flag in st.session_state:
+                del st.session_state[flag]
+
+            if deleted:
+                st.success("File deleted!")
+            else:
+                st.warning("File not found / already deleted.")
             st.rerun()
 
     # --- Website URLs ---
     st.markdown("---")
     st.subheader("🌐 Manage Website URLs")
+    # Add Website URL
     new_url = st.text_input("Add Website URL", key=f"url_{selected_bot_id}")
-    if st.button("Add URL", key=f"add_url_{selected_bot_id}") and new_url:
-        from utils.file_handle import scrape_and_add_url
-        scrape_and_add_url(selected_bot_id, new_url)
-        st.success(f"URL added and content appended: {new_url}")
-        st.rerun()
-
-    # Show & delete URLs
+    if st.button("Add URL", key=f"add_url_{selected_bot_id}"):
+        if new_url:
+            from utils.file_handle import scrape_and_add_url  # we’ll create this
+            scrape_and_add_url(selected_bot_id, new_url)
+            st.success(f"URL added and content appended: {new_url}")
+            st.rerun()
+    
+    # Show existing URLs
+    # Manage URLs
     st.subheader("Current URLs")
-    urls = selected_bot_info.get("config", {}).get("urls", [])
-    for idx, u in enumerate(urls):
+    # Fetch fresh data
+    bot_doc = db.collection("bots").document(selected_bot_id).get()
+    urls = bot_doc.to_dict().get("config", {}).get("urls", [])
+    for u in urls:
         col1, col2 = st.columns([5, 1])
         col1.write(u)
-        if col2.button("❌", key=f"del_url_{idx}_{selected_bot_id}"):
+        if col2.button("❌", key=f"del_url_{u}_{selected_bot_id}"):
             from utils.file_handle import delete_url
             delete_url(selected_bot_id, u)
             st.success(f"Deleted {u}")
             st.rerun()
+
 
     # --- Embed snippet ---
     st.markdown("---")
     st.write("📄 **Embed this bot on your website:**")
     api_key = selected_bot_info.get("api_key")
     if api_key:
-        embed_code = f'<script src="{BACKEND}/static/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info.get("name","Bot")}"></script>'
+        embed_code = f'<script src="{BACKEND}/static/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
         st.code(embed_code, language="html")
         st.markdown(f"""
         **How to use this snippet:**
         1. Copy the code above.
         2. Paste it **before the closing `</body>` tag** in your HTML.
-        3. Refresh your website. The chat widget for **{selected_bot_info.get("name","Bot")}** will appear.
+        3. Refresh your website. The chat widget for **{selected_bot_info['name']}** will appear.
         """)
     else:
         st.warning("API key not found for this bot.")
+
+# ---------------- MAIN APP ----------------
+def main():
+    tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots"])
+
+    with tabs[0]:
+        create_and_save_bot()
+    with tabs[1]:
+        bot_management_ui()
+    with tabs[2]:
+        chat_interface()
+
+if __name__ == "__main__":
+    main()
+
