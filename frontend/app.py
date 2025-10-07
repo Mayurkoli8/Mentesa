@@ -326,30 +326,45 @@ def bot_management_ui():
     # Upload Files
     uploaded_file = st.file_uploader("Upload a RAG File", key=f"file_{selected_bot_id}")
     if uploaded_file:
-        try:
-            content = uploaded_file.read().decode("utf-8")
-        except UnicodeDecodeError:
-            # fallback for files not UTF-8 encoded
-            content = uploaded_file.read().decode("latin-1")
-
-        # store content in Firestore
         from utils.file_handle import upload_file
-        file_url = upload_file(selected_bot_id, uploaded_file, uploaded_file.name)
+        filename = uploaded_file.name
+    
+        # Read content once
+        content = ""
+        if filename.lower().endswith(".pdf"):
+            from PyPDF2 import PdfReader
+            reader = PdfReader(uploaded_file)
+            content = "\n".join([page.extract_text() or "" for page in reader.pages])
+        else:
+            try:
+                content = uploaded_file.read().decode("utf-8")
+            except UnicodeDecodeError:
+                uploaded_file.seek(0)
+                content = uploaded_file.read().decode("latin-1")
+    
+        if not content.strip():
+            content = "-"
+    
+        # Upload file (pass **content only**, not file object)
+        file_url = upload_file(selected_bot_id, filename, content)
         st.success(f"File uploaded: {file_url}")
         st.rerun()
+    
 
 
     # List existing RAG files
     st.subheader("Current RAG Files")
-    files = db.collection("bots").document(selected_bot_id).collection("rag_files").stream()
-    for f in files:
-        f_data = f.to_dict()
-        col_name, col_del = st.columns([4,1])
-        col_name.write(f_data["filename"])
-        if col_del.button("🗑️ Delete", key=f"delete_file_{f.id}"):
-            db.collection("bots").document(selected_bot_id).collection("rag_files").document(f.id).delete()
+    bot_doc = db.collection("bots").document(selected_bot_id).get()
+    file_list = bot_doc.to_dict().get("file_data", []) if bot_doc.exists else []
+    for idx, f in enumerate(file_list):
+        col_name, col_del = st.columns([4, 1])
+        col_name.write(f["name"])
+        if col_del.button("🗑️ Delete", key=f"delete_file_{idx}_{selected_bot_id}"):
+            # Remove from Firestore array
+            new_list = [x for x in file_list if x["name"] != f["name"]]
+            db.collection("bots").document(selected_bot_id).update({"file_data": new_list})
             st.success("File deleted!")
-            st.experimental_rerun()
+            st.rerun()
 
     # --- Website URLs ---
     st.markdown("---")
@@ -364,8 +379,12 @@ def bot_management_ui():
             st.rerun()
     
     # Show existing URLs
+    # Manage URLs
     st.subheader("Current URLs")
-    for u in selected_bot_info.get("config", {}).get("urls", []):
+    # Fetch fresh data
+    bot_doc = db.collection("bots").document(selected_bot_id).get()
+    urls = bot_doc.to_dict().get("config", {}).get("urls", [])
+    for u in urls:
         col1, col2 = st.columns([5, 1])
         col1.write(u)
         if col2.button("❌", key=f"del_url_{u}_{selected_bot_id}"):

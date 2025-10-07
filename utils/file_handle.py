@@ -1,37 +1,31 @@
-# bot_ops.py
 from firebase_admin import firestore
 import uuid
 
 db = firestore.client()
 
-def upload_file(bot_id, file, filename):
-    """
-    Stores uploaded file content directly in Firestore under bot's file_data.
-    """
-    # Read content safely
-    try:
-        content = file.read().decode("utf-8")
-    except UnicodeDecodeError:
-        content = file.read().decode("latin-1")
-
+def upload_file(bot_id, filename, content):
+    # Load bot document
     bot_doc = db.collection("bots").document(bot_id)
     bot_snapshot = bot_doc.get()
 
     if bot_snapshot.exists:
-        file_list = bot_snapshot.to_dict().get("file_data", [])
+        bot_data = bot_snapshot.to_dict()
+        file_list = bot_data.get("file_data", [])
+
+        # Remove **all previous entries with the same filename**
+        file_list = [f for f in file_list if f["name"] != filename]
     else:
         file_list = []
 
-    # Append new file
-    file_list.append({
-        "name": filename,
-        "text": content
-    })
+    # Append **single entry** for this file
+    file_list.append({"name": filename, "text": content})
 
-    # Update Firestore
+    # Write back to Firestore **once**
     bot_doc.update({"file_data": file_list})
 
     return filename
+
+
 
 def scrape_and_add_url(bot_id: str, url: str):
     bot_ref = db.collection("bots").document(bot_id)
