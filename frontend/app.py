@@ -15,7 +15,7 @@ from utils.llm import generate_bot_config_gemini, chat_with_gemini
 from ui import apply_custom_styles, show_header, logo_animation
 
 from utils.firebase_config import db
-BACKEND="https://mentesav7.onrender.com"
+BACKEND="https://mentesav8.onrender.com"
 
 
 # --- PAGE CONFIG ---
