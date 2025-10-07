@@ -324,17 +324,20 @@ def bot_management_ui():
     st.subheader("📂 Upload RAG Files")
 
     # Upload Files
-    uploaded_files = st.file_uploader("Upload one or more files for RAG", accept_multiple_files=True, key=f"rag_files_{selected_bot_id}")
-    if uploaded_files:
-        for file in uploaded_files:
-            content = file.read().decode("utf-8")  # store as plain text
-            db.collection("bots").document(selected_bot_id).collection("rag_files").add({
-                "filename": file.name,
-                "content": content,
-                "uploaded_at": firestore.SERVER_TIMESTAMP
-            })
-        st.success(f"{len(uploaded_files)} file(s) uploaded successfully!")
+    uploaded_file = st.file_uploader("Upload a RAG File", key=f"file_{selected_bot_id}")
+    if uploaded_file:
+        try:
+            content = uploaded_file.read().decode("utf-8")
+        except UnicodeDecodeError:
+            # fallback for files not UTF-8 encoded
+            content = uploaded_file.read().decode("latin-1")
+
+        # store content in Firestore
+        from utils.file_handle import upload_file
+        file_url = upload_file(selected_bot_id, uploaded_file, uploaded_file.name)
+        st.success(f"File uploaded: {file_url}")
         st.rerun()
+
 
     # List existing RAG files
     st.subheader("Current RAG Files")

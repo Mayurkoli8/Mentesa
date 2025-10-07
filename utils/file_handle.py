@@ -4,19 +4,35 @@ import uuid
 
 db = firestore.client()
 
-def upload_file(bot_id, file_obj, filename):
-    unique_name = f"{bot_id}/{uuid.uuid4()}_{filename}"
-    blob = bucket.blob(unique_name)
-    blob.upload_from_file(file_obj)
-    blob.make_public()
-    file_url = blob.public_url
+def upload_file(bot_id, file, filename):
+    """
+    Uploads file content to Firestore under bot's file_data.
+    Stores as plain text (UTF-8 with fallback).
+    """
+    try:
+        content = file.read().decode("utf-8")
+    except UnicodeDecodeError:
+        content = file.read().decode("latin-1")  # fallback encoding
 
-    bot_ref = db.collection("bots").document(bot_id)
-    bot_ref.update({
-        "config.files": firestore.ArrayUnion([file_url])
+    bot_doc = db.collection("bots").document(bot_id)
+    bot_snapshot = bot_doc.get()
+
+    if bot_snapshot.exists:
+        file_list = bot_snapshot.to_dict().get("file_data", [])
+    else:
+        file_list = []
+
+    # Append new file
+    file_list.append({
+        "name": filename,
+        "text": content
     })
 
-    return file_url
+    # Update Firestore
+    bot_doc.update({"file_data": file_list})
+
+    return filename
+
 
 def scrape_and_add_url(bot_id: str, url: str):
     bot_ref = db.collection("bots").document(bot_id)
