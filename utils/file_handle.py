@@ -24,16 +24,17 @@ def scrape_and_add_url(bot_id: str, url: str):
     if not bot_doc.exists:
         raise ValueError("Bot not found")
 
-    # 1️⃣ Scrape new URL
-    from utils.scraper import scrape_website  # your existing function
+    # Scrape new URL
+    from utils.scraper import scrape_website
     new_content = scrape_website(url)
 
-    # 2️⃣ Append to existing scraped_text
-    bot_data = bot_doc.to_dict()
-    existing_scraped = bot_data.get("scraped_text", "")
-    updated_scraped = existing_scraped + "\n\n" + new_content
+    # Fetch current scraped_text from Firestore
+    current_scraped = bot_doc.to_dict().get("scraped_text", "")
 
-    # 3️⃣ Update Firestore
+    # Append new content
+    updated_scraped = current_scraped + "\n\n" + new_content
+
+    # Update Firestore atomically
     bot_ref.update({
         "scraped_text": updated_scraped,
         "config.urls": firestore.ArrayUnion([url])
