@@ -4,19 +4,12 @@ from firebase_admin import firestore as fa_firestore
 import uuid
 
 def safe_text(text: str) -> str:
-    """Sanitize text so Firestore won't error on encoding."""
     return text.encode("utf-8", errors="replace").decode("utf-8")
 
 def upload_file(bot_id: str, filename: str, content: str) -> str:
-    """
-    Store (or replace) a single file entry in bots/{bot_id}.file_data atomically.
-    - filename: string name
-    - content: full text (already extracted)
-    """
-    # sanitize & normalize
     content = safe_text(content or "")
     if not content.strip():
-        content = "-"  # sentinel for "no usable text"
+        content = "-"
 
     bot_ref = db.collection("bots").document(bot_id)
 
@@ -25,10 +18,9 @@ def upload_file(bot_id: str, filename: str, content: str) -> str:
         data = snap.to_dict() or {}
         file_list = data.get("file_data", []) if data else []
 
-        # Remove any existing entries with same filename
+        # remove existing entries with same name
         file_list = [f for f in file_list if f.get("name") != filename]
 
-        # Append a single entry
         file_list.append({
             "id": str(uuid.uuid4()),
             "name": filename,
@@ -41,8 +33,7 @@ def upload_file(bot_id: str, filename: str, content: str) -> str:
     db.run_transaction(txn_update)
     return filename
 
-def delete_file(bot_id: str, filename: str):
-    """Delete file entry by filename."""
+def delete_file(bot_id: str, filename: str) -> bool:
     bot_ref = db.collection("bots").document(bot_id)
     snap = bot_ref.get()
     if not snap.exists:
@@ -51,32 +42,6 @@ def delete_file(bot_id: str, filename: str):
     new_list = [f for f in file_list if f.get("name") != filename]
     bot_ref.update({"file_data": new_list})
     return True
-
-def dedupe_files(bot_id: str) -> tuple:
-    """
-    Clean existing file_data by keeping only one entry per filename.
-    Preference: keep the longest non-empty text.
-    Returns (original_count, deduped_count)
-    """
-    bot_ref = db.collection("bots").document(bot_id)
-    snap = bot_ref.get()
-    if not snap.exists:
-        return (0, 0)
-    file_list = snap.to_dict().get("file_data", []) or []
-    best = {}
-    for f in file_list:
-        name = f.get("name")
-        text = f.get("text", "") or ""
-        if name not in best:
-            best[name] = f
-        else:
-            # choose one with longer text or non "-" sentinel
-            cur = best[name].get("text", "") or ""
-            if (cur == "-" and text != "-") or (len(text) > len(cur)):
-                best[name] = f
-    new_list = list(best.values())
-    bot_ref.update({"file_data": new_list})
-    return (len(file_list), len(new_list))
 
 
 

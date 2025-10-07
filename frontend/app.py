@@ -329,60 +329,73 @@ def bot_management_ui():
         filename = uploaded_file.name
         flag = f"uploaded_{selected_bot_id}_{filename}"
 
-        # Prevent double-processing across Streamlit reruns
+        # Only process when flag not set (prevents double-processing)
         if not st.session_state.get(flag):
-            # Read bytes once
-            data_bytes = uploaded_file.read()  # bytes
-            content = ""
+            # read bytes once
+            data_bytes = uploaded_file.read()
 
+            # extract text depending on file type
+            content = ""
             if filename.lower().endswith(".pdf"):
                 try:
                     from PyPDF2 import PdfReader
                     reader = PdfReader(io.BytesIO(data_bytes))
+                    # combine pages:
                     content = "\n".join([p.extract_text() or "" for p in reader.pages])
                 except Exception as e:
-                    # fallback: try decode as text
+                    # fallback: try decode as text (rare), but do NOT store raw pdf bytes
                     try:
                         content = data_bytes.decode("utf-8")
                     except Exception:
                         content = data_bytes.decode("latin-1", errors="ignore")
             else:
+                # text-like files
                 try:
                     content = data_bytes.decode("utf-8")
-                except UnicodeDecodeError:
+                except Exception:
                     content = data_bytes.decode("latin-1", errors="ignore")
 
-            # Ensure content not empty
             if not content.strip():
-                content = "-"
+                content = "-"  # sentinel for "no usable text"
 
-            # Call backend helper (content only)
-            from utils.file_handle import upload_file
-            upload_file(selected_bot_id, filename, content)
-
-            # mark uploaded so reruns don't re-run
+            # mark as processing so reruns won't re-process
             st.session_state[flag] = True
+
+            # upload (upload_file will sanitize + replace existing)
+            upload_file(selected_bot_id, filename, content)
 
             st.success(f"Uploaded '{filename}'")
             st.rerun()
-        else:
-            st.info("File already uploaded in this session. If you want to re-upload, refresh the page or delete the previous file first.")
 
+        else:
+            # If flag set but file is now present in Firestore we will clear it below
+            st.info("File already uploaded in this session. If you want to re-upload, delete the previous file first.")
 
     # List existing RAG files
     st.subheader("Current RAG Files")
-    file_list = selected_bot_info.get("file_data", [])
-    for idx, f in enumerate(file_list):
+    file_list = selected_bot_info.get("file_data", []) or []
+
+    for idx, file_entry in enumerate(file_list):
         col_name, col_del = st.columns([4, 1])
-        col_name.write(f["name"])
+        col_name.write(file_entry.get("name"))
 
-        if col_del.button("🗑️ Delete", key=f"delete_file_{idx}_{selected_bot_id}"):
+        delete_key = f"delete_file_{idx}_{selected_bot_id}"
+        if col_del.button("🗑️ Delete", key=delete_key):
             # call delete helper to remove from Firestore
-            from utils.file_handle import delete_file
-            deleted = delete_file(selected_bot_id, f["name"])
+            try:
+                from utils.file_handle import delete_file
+                deleted = delete_file(selected_bot_id, file_entry.get("name"))
+            except Exception as e:
+                st.error(f"Delete failed: {e}")
+                deleted = False
 
-            # also clear the session_state upload-flag so user can re-upload in this session
-            flag = f"uploaded_{selected_bot_id}_{f['name']}"
+            # clear only that file's session-state upload-flag so user can re-upload
+            flag = f"uploaded_{selected_bot_id}_{file_entry.get('name')}"
+            # after fetching file_list:
+            for fe in file_list:
+                flag = f"uploaded_{selected_bot_id}_{fe.get('name')}"
+                if st.session_state.get(flag):
+                    del st.session_state[flag]
             if flag in st.session_state:
                 del st.session_state[flag]
 
@@ -390,7 +403,10 @@ def bot_management_ui():
                 st.success("File deleted!")
             else:
                 st.warning("File not found / already deleted.")
+
+            # refresh UI (fetches current Firestore state on next run)
             st.rerun()
+
 
     # --- Website URLs ---
     st.markdown("---")
@@ -413,7 +429,7 @@ def bot_management_ui():
     for u in urls:
         col1, col2 = st.columns([5, 1])
         col1.write(u)
-        if col2.button("❌", key=f"del_url_{u}_{selected_bot_id}"):
+        if col2.button("🗑️ Delete", key=f"del_url_{u}_{selected_bot_id}"):
             from utils.file_handle import delete_url
             delete_url(selected_bot_id, u)
             st.success(f"Deleted {u}")
