@@ -28,14 +28,31 @@ def scrape_and_add_url(bot_id: str, url: str):
     from utils.scraper import scrape_website
     new_content = scrape_website(url)
 
-    # Fetch current scraped_text from Firestore
-    current_scraped = bot_doc.to_dict().get("scraped_text", "")
+    # Fetch current scraped_texts from Firestore
+    current_scraped_texts = bot_doc.to_dict().get("scraped_texts", {})
 
-    # Append new content
-    updated_scraped = current_scraped + "\n\n" + new_content
+    # Add new URL content
+    current_scraped_texts[url] = new_content
 
-    # Update Firestore atomically
+    # Update Firestore
     bot_ref.update({
-        "scraped_text": updated_scraped,
+        "scraped_texts": current_scraped_texts,
         "config.urls": firestore.ArrayUnion([url])
+    })
+
+def delete_url(bot_id: str, url: str):
+    bot_ref = db.collection("bots").document(bot_id)
+    bot_doc = bot_ref.get()
+    if not bot_doc.exists:
+        raise ValueError("Bot not found")
+
+    # Remove URL from scraped_texts
+    current_scraped_texts = bot_doc.to_dict().get("scraped_texts", {})
+    if url in current_scraped_texts:
+        current_scraped_texts.pop(url)
+
+    # Remove URL from config
+    bot_ref.update({
+        "scraped_texts": current_scraped_texts,
+        "config.urls": firestore.ArrayRemove([url])
     })

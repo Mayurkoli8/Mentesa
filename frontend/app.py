@@ -364,7 +364,14 @@ def bot_management_ui():
     # Show existing URLs
     st.subheader("Current URLs")
     for u in selected_bot_info.get("config", {}).get("urls", []):
-        st.write(u)
+        col1, col2 = st.columns([5, 1])
+        col1.write(u)
+        if col2.button("❌", key=f"del_url_{u}_{selected_bot_id}"):
+            from utils.file_handle import delete_url
+            delete_url(selected_bot_id, u)
+            st.success(f"Deleted {u}")
+            st.rerun()
+    
 
     # --- Embed snippet ---
     st.markdown("---")
