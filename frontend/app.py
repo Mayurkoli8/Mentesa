@@ -269,7 +269,6 @@ def chat_interface():
         st.rerun()
 
 # ---------------- BOT MANAGEMENT ----------------
-
 def bot_management_ui():
     st.subheader("🛠️ Manage Your Bots")
 
@@ -293,52 +292,92 @@ def bot_management_ui():
     # --- Bot management columns ---
     col1, col2, col3, col4 = st.columns([2, 3, 1, 1])
 
+    # Rename
     new_name = col1.text_input("Name", value=selected_bot_info['name'], key=f"name_{selected_bot_id}")
     if col1.button("✏️ Rename", key=f"rename_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).update({"name": new_name})
         st.success("Renamed!")
         st.rerun()
 
-    new_persona = col2.text_area("Personality", value=selected_bot_info['personality'], key=f"persona_{selected_bot_id}", height=80)
+    # Update Personality
+    new_persona = col2.text_area("Personality", value=selected_bot_info.get('personality', ""), key=f"persona_{selected_bot_id}", height=80)
     if col2.button("✏️ Update", key=f"update_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).update({"personality": new_persona})
         st.success("Personality updated!")
         st.rerun()
 
+    # Clear Chat
     if col3.button("🧹 Clear Chat", key=f"manage_clear_{selected_bot_id}"):
         db.collection("bot_chats").document(selected_bot_id).delete()
         if "history" in st.session_state:
-            st.session_state.history=[]
+            st.session_state.history = []
         st.success("Chat history cleared!")
         st.rerun()
 
+    # Delete Bot
     if col4.button("🗑️ Delete", key=f"delete_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).delete()
         st.success("Bot deleted!")
         st.rerun()
 
+    # --- RAG Management (Files & URLs) ---
+    st.markdown("---")
+    st.subheader("📂 Upload RAG Files")
+
+    # Upload Files
+    uploaded_files = st.file_uploader("Upload one or more files for RAG", accept_multiple_files=True, key=f"rag_files_{selected_bot_id}")
+    if uploaded_files:
+        for file in uploaded_files:
+            content = file.read().decode("utf-8")  # store as plain text
+            db.collection("bots").document(selected_bot_id).collection("rag_files").add({
+                "filename": file.name,
+                "content": content,
+                "uploaded_at": firestore.SERVER_TIMESTAMP
+            })
+        st.success(f"{len(uploaded_files)} file(s) uploaded successfully!")
+        st.rerun()
+
+    # List existing RAG files
+    st.subheader("Current RAG Files")
+    files = db.collection("bots").document(selected_bot_id).collection("rag_files").stream()
+    for f in files:
+        f_data = f.to_dict()
+        col_name, col_del = st.columns([4,1])
+        col_name.write(f_data["filename"])
+        if col_del.button("🗑️ Delete", key=f"delete_file_{f.id}"):
+            db.collection("bots").document(selected_bot_id).collection("rag_files").document(f.id).delete()
+            st.success("File deleted!")
+            st.experimental_rerun()
+
+    # --- Website URLs ---
+    st.markdown("---")
+    st.subheader("🌐 Manage Website URLs")
+    new_url = st.text_input("Add Website URL", key=f"url_{selected_bot_id}")
+    if st.button("Add URL", key=f"add_url_{selected_bot_id}"):
+        urls = selected_bot_info.get("config", {}).get("urls", [])
+        if new_url not in urls:
+            urls.append(new_url)
+            db.collection("bots").document(selected_bot_id).update({"config.urls": urls})
+            st.success(f"URL added: {new_url}")
+            st.rerun()
+
+    # Show existing URLs
+    st.subheader("Current URLs")
+    for u in selected_bot_info.get("config", {}).get("urls", []):
+        st.write(u)
+
     # --- Embed snippet ---
     st.markdown("---")
     st.write("📄 **Embed this bot on your website:**")
-
     api_key = selected_bot_info.get("api_key")
     if api_key:
         embed_code = f'<script src="{BACKEND}/static/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
         st.code(embed_code, language="html")
-
-
-        # Instructions
         st.markdown(f"""
         **How to use this snippet:**
-
-        1. Copy the code above (click inside the box and use Ctrl+C or your preferred copy method).
-        2. Open your website’s HTML (index.html) file.
-        3. Paste the snippet **before the closing `</body>` tag**.
-        4. Save your file and refresh your website.
-        5. The chat widget for **{selected_bot_info['name']}** will appear in the bottom-right corner.
-        6. Users can now chat with your bot directly on your site!
-
-        > ⚠️ Make sure your website allows external scripts if hosting backend separately.
+        1. Copy the code above.
+        2. Paste it **before the closing `</body>` tag** in your HTML.
+        3. Refresh your website. The chat widget for **{selected_bot_info['name']}** will appear.
         """)
     else:
         st.warning("API key not found for this bot.")

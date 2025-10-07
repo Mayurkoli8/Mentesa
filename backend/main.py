@@ -316,36 +316,49 @@ def chat(req: ChatRequest,
          authorization: Optional[str] = Header(default=None), 
          x_api_key: Optional[str] = Header(default=None)):
 
+    # 1️⃣ Get API key
     api_key = None
-
-    # 1. Check Authorization: Bearer
     if authorization and authorization.lower().startswith("bearer "):
         api_key = authorization.split(" ", 1)[1].strip()
-    # 2. Check x-api-key header
     elif x_api_key:
         api_key = x_api_key.strip()
-    # 3. Fallback to bot_id
     elif req.bot_id:
         api_key = req.bot_id
     else:
         raise HTTPException(status_code=400, detail="Provide Authorization, x-api-key, or bot_id")
 
-    # 🔑 Find bot
+    # 2️⃣ Find bot
     bot = find_bot_by_api_key(api_key) or find_bot_by_id(api_key)
     if not bot:
         raise HTTPException(status_code=401, detail="Invalid API key or bot_id")
 
-    # ------------------------------
-    # ✅ Use GEMINI_API_KEY here
-    # ------------------------------
+    # 3️⃣ Configure Gemini
     genai.configure(api_key=GEMINI_API_KEY)
 
-    # Build prompt
-    name = bot["name"]
+    # 4️⃣ Gather all context: personality + scraped_text + uploaded files
+    name = bot.get("name", "Bot")
     personality = bot.get("personality", "")
-    scraped=bot.get("scraped_text","")
-    prompt = f"You are '{name}'. Personality: {personality}\n Here is information from the website (if available):{scraped}, Only answer based on the website content. User: {req.message}"
+    scraped = bot.get("scraped_text", "")
 
+    # Fetch uploaded files from Firestore (RAG files)
+    file_texts = []
+    rag_files = db.collection("bots").document(bot["id"]).collection("rag_files").stream()
+    for f in rag_files:
+        f_data = f.to_dict()
+        file_texts.append(f_data.get("content", ""))  # store text content only
+    
+
+    # Combine all RAG context
+    rag_context = "\n".join([scraped] + file_texts)
+
+    # 5️⃣ Build prompt
+    prompt = (
+        f"You are '{name}'. Personality: {personality}\n"
+        f"Here is information from the website and uploaded files (if available):\n{rag_context}\n"
+        f"Only answer based on this content. User: {req.message}"
+    )
+
+    # 6️⃣ Generate response
     try:
         model = genai.GenerativeModel("gemini-2.5-pro")
         response = model.generate_content(prompt)

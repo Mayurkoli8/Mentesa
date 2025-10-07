@@ -36,7 +36,9 @@ if not service_account_info:
 # Initialize Firebase if not already initialized
 if not firebase_admin._apps:
     cred = credentials.Certificate(service_account_info)
-    firebase_admin.initialize_app(cred)
+    firebase_admin.initialize_app(cred, {
+        "storageBucket": "your-project-id.appspot.com" 
+    }) 
 
 # Firestore client
 db = firestore.client()
