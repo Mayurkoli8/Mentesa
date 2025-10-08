@@ -111,8 +111,7 @@ def create_and_save_bot():
         payload = {
             "name": bot_name.strip(),
             "prompt": prompt.strip(),
-            "url": url.strip() if url.strip() else None,
-            "config": {},
+            "config": {"urls": [url.strip()]} if url.strip() else {},
             "files": files_payload
         }
 
