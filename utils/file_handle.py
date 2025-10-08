@@ -141,19 +141,35 @@ def salvage_pdf_entries(bot_id: str) -> dict:
 
 # URL
 
-def delete_url(bot_id: str, url: str):
+def delete_url(bot_id: str, url: str) -> bool:
+    """
+    Remove a URL from bot.scraped_texts and from bot.config.urls (Firestore ArrayRemove).
+    Returns True on success, False if bot not found.
+    """
     bot_ref = db.collection("bots").document(bot_id)
     bot_doc = bot_ref.get()
     if not bot_doc.exists:
-        raise ValueError("Bot not found")
+        return False
 
-    # Remove URL from scraped_texts
-    current_scraped_texts = bot_doc.to_dict().get("scraped_texts", {})
+    data = bot_doc.to_dict() or {}
+
+    # Remove url entry from scraped_texts map if present
+    current_scraped_texts = data.get("scraped_texts", {})
     if url in current_scraped_texts:
-        current_scraped_texts.pop(url)
+        current_scraped_texts.pop(url, None)
 
-    # Remove URL from config
-    bot_ref.update({
-        "scraped_texts": current_scraped_texts,
-        "config.urls": firestore.ArrayRemove([url])
-    })
+    # Update Firestore: set scraped_texts map and remove url from config.urls atomically
+    # Use fa_firestore.ArrayRemove (you imported firestore as fa_firestore)
+    updates = {"scraped_texts": current_scraped_texts}
+    try:
+        # Attempt to remove the url from config.urls array (if it exists)
+        updates["config.urls"] = fa_firestore.ArrayRemove([url])
+    except Exception:
+        # In case ArrayRemove is not available for some reason, fallback to manual removal
+        urls = data.get("config", {}).get("urls", [])
+        if url in urls:
+            urls = [u for u in urls if u != url]
+            updates["config"] = {**(data.get("config", {})), "urls": urls}
+
+    bot_ref.update(updates)
+    return True
