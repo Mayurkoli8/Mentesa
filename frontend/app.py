@@ -5,6 +5,7 @@ import sys
 import os
 import requests
 import google.generativeai
+from ui import apply_custom_styles, show_header, logo_animation
 
 
 from utils.firebase_config import db
@@ -16,7 +17,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from streamlit.components.v1 import html as components_html
 from utils.llm import generate_bot_config_gemini, chat_with_gemini
-from ui import apply_custom_styles, show_header, logo_animation
 
 from utils.firebase_config import db
 BACKEND="https://mentesav8.onrender.com"
