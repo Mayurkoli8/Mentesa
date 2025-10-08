@@ -7,7 +7,12 @@ import io
 from typing import Tuple
 
 def safe_text(text: str) -> str:
-    """Make text safe for Firestore (remove surrogates, replace bad bytes)."""
+    """
+    Make text safe for Firestore:
+    - ensure str type
+    - remove lone surrogate codepoints U+D800..U+DFFF
+    - encode with 'replace' to avoid encoding errors
+    """
     if text is None:
         return ""
     if not isinstance(text, str):
@@ -27,11 +32,11 @@ def safe_text(text: str) -> str:
 def upload_file(bot_id: str, filename: str, content: str) -> str:
     """
     Atomically store (or replace) a single file entry in bots/{bot_id}.file_data.
-    content should already be plain text (string). This function sanitizes it again.
+    content should be a plain text string. This function sanitizes it again.
     """
     content = safe_text(content or "")
     if not content.strip():
-        content = "-"
+        content = "-"  # sentinel for "no usable text"
 
     bot_ref = db.collection("bots").document(bot_id)
 
@@ -40,9 +45,10 @@ def upload_file(bot_id: str, filename: str, content: str) -> str:
         data = snap.to_dict() or {}
         file_list = data.get("file_data", []) if data else []
 
-        # remove tombstones with same name
+        # Remove any existing entries with same filename
         file_list = [f for f in file_list if f.get("name") != filename]
 
+        # Append a single sanitized entry
         file_list.append({
             "id": str(uuid.uuid4()),
             "name": filename,
@@ -59,6 +65,7 @@ def upload_file(bot_id: str, filename: str, content: str) -> str:
     return filename
 
 def delete_file(bot_id: str, filename: str) -> bool:
+    """Delete a file entry by filename from bots/{bot_id}.file_data"""
     bot_ref = db.collection("bots").document(bot_id)
     snap = bot_ref.get()
     if not snap.exists:
@@ -68,12 +75,43 @@ def delete_file(bot_id: str, filename: str) -> bool:
     bot_ref.update({"file_data": new_list})
     return True
 
+def dedupe_files(bot_id: str) -> Tuple[int, int]:
+    """
+    Deduplicate file_data entries for a bot.
+    Keeps the longest non-empty text per filename.
+    Returns (original_count, deduped_count).
+    """
+    bot_ref = db.collection("bots").document(bot_id)
+    snap = bot_ref.get()
+    if not snap.exists:
+        return (0, 0)
+    file_list = snap.to_dict().get("file_data", []) or []
+    best = {}
+    for f in file_list:
+        name = f.get("name")
+        text = f.get("text", "") or ""
+        if name not in best:
+            best[name] = f
+        else:
+            cur = best[name].get("text", "") or ""
+            # prefer longer or non-sentinel
+            if (cur == "-" and text != "-") or (len(text) > len(cur)):
+                best[name] = f
+    new_list = list(best.values())
+    bot_ref.update({"file_data": new_list})
+    return (len(file_list), len(new_list))
+
 def salvage_pdf_entries(bot_id: str) -> dict:
     """
     Try to recover entries that accidentally contain raw PDF bytes stored as text.
-    Returns a dict {checked: n, fixed: m}.
+    Returns {'checked': n, 'fixed': m}.
     """
-    from PyPDF2 import PdfReader  # local import
+    try:
+        from PyPDF2 import PdfReader  # local import
+    except Exception:
+        # PyPDF2 not installed or import failed
+        return {"checked": 0, "fixed": 0}
+
     bot_ref = db.collection("bots").document(bot_id)
     snap = bot_ref.get()
     if not snap.exists:

@@ -327,15 +327,20 @@ def bot_management_ui():
     from utils.file_handle import upload_file, safe_text   # ensure safe_text is importable
 
     # Upload Files
+    import io
+
+    # Upload Files
     uploaded_file = st.file_uploader("Upload a RAG File", key=f"file_{selected_bot_id}")
     if uploaded_file:
         filename = uploaded_file.name
         flag = f"uploaded_{selected_bot_id}_{filename}"
     
+        # prevent double-processing on rerun
         if not st.session_state.get(flag):
             try:
-                data_bytes = uploaded_file.read()
+                data_bytes = uploaded_file.read()  # bytes read once
                 content = ""
+    
                 if filename.lower().endswith(".pdf"):
                     from PyPDF2 import PdfReader
                     reader = PdfReader(io.BytesIO(data_bytes))
@@ -346,21 +351,22 @@ def bot_management_ui():
                     except Exception:
                         content = data_bytes.decode("latin-1", errors="ignore")
     
-                if not content.strip():
-                    content = "-"
-    
-                # Lazy import the helper to surface import problems early and inside try/except
+                # Lazy import helpers to surface import errors
                 try:
                     from utils.file_handle import upload_file, safe_text
                 except Exception as imp_e:
                     st.error(f"Import failed in frontend: {type(imp_e).__name__}: {imp_e}")
                     raise
     
-                # sanitize in frontend too
+                # sanitize locally too
                 content = safe_text(content)
+    
+                if not content.strip():
+                    content = "-"
     
                 st.session_state[flag] = True
                 upload_file(selected_bot_id, filename, content)
+    
                 st.success(f"Uploaded '{filename}'")
                 st.experimental_rerun()
     
@@ -370,10 +376,11 @@ def bot_management_ui():
                     del st.session_state[flag]
         else:
             st.info("File already uploaded in this session. If you want to re-upload, delete the previous file first.")
-        # List existing RAG files
-        st.subheader("Current RAG Files")
-        file_list = selected_bot_info.get("file_data", []) or []
     
+    # List existing RAG files
+    st.subheader("Current RAG Files")
+    file_list = selected_bot_info.get("file_data", []) or []
+
     for idx, file_entry in enumerate(file_list):
         col_name, col_del = st.columns([4, 1])
         col_name.write(file_entry.get("name"))
