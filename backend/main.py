@@ -154,13 +154,15 @@ def create_bot(bot: BotCreate):
     import re, json, uuid
     from datetime import datetime
 
+    # Get the first URL from frontend config (if any)
+    frontend_urls = getattr(bot, "config", {}).get("urls", [])
     site_text = ""
-    if bot.url:
+    if frontend_urls:
         try:
-            site_text = scrape_website(bot.url)
+            site_text = scrape_website(frontend_urls[0])
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to scrape site: {e}")
-
+    
     # ----------------------
     # Call Gemini to build bot config
     # ----------------------
