@@ -6,12 +6,15 @@ import re
 import io
 from typing import Tuple
 
+# -----------------------
+# Text safety helpers
+# -----------------------
 def safe_text(text: str) -> str:
     """
     Make text safe for Firestore:
-    - ensure str type
-    - remove lone surrogate codepoints U+D800..U+DFFF
-    - encode with 'replace' to avoid encoding errors
+      - ensure str
+      - remove lone surrogate codepoints (U+D800..U+DFFF)
+      - encode/decode with 'replace' so no encoding errors remain
     """
     if text is None:
         return ""
@@ -24,15 +27,19 @@ def safe_text(text: str) -> str:
             except Exception:
                 text = str(text)
 
-    # remove lone surrogate code units
+    # remove lone surrogate code units (these cause "surrogates not allowed")
     text = re.sub(r'[\uD800-\uDFFF]', '', text)
     safe = text.encode("utf-8", errors="replace").decode("utf-8")
     return safe
 
+# -----------------------
+# File (RAG) helpers
+# -----------------------
 def upload_file(bot_id: str, filename: str, content: str) -> str:
     """
     Atomically store (or replace) a single file entry in bots/{bot_id}.file_data.
-    content should be a plain text string. This function sanitizes it again.
+    content should be the extracted text (string). Function sanitizes again.
+    Returns filename on success.
     """
     content = safe_text(content or "")
     if not content.strip():
@@ -45,10 +52,9 @@ def upload_file(bot_id: str, filename: str, content: str) -> str:
         data = snap.to_dict() or {}
         file_list = data.get("file_data", []) if data else []
 
-        # Remove any existing entries with same filename
+        # remove existing entries with same filename
         file_list = [f for f in file_list if f.get("name") != filename]
 
-        # Append a single sanitized entry
         file_list.append({
             "id": str(uuid.uuid4()),
             "name": filename,
@@ -56,6 +62,7 @@ def upload_file(bot_id: str, filename: str, content: str) -> str:
             "uploaded_at": fa_firestore.SERVER_TIMESTAMP
         })
 
+        # update or create
         if snap.exists:
             transaction.update(bot_ref, {"file_data": file_list})
         else:
@@ -94,7 +101,6 @@ def dedupe_files(bot_id: str) -> Tuple[int, int]:
             best[name] = f
         else:
             cur = best[name].get("text", "") or ""
-            # prefer longer or non-sentinel
             if (cur == "-" and text != "-") or (len(text) > len(cur)):
                 best[name] = f
     new_list = list(best.values())
@@ -107,9 +113,8 @@ def salvage_pdf_entries(bot_id: str) -> dict:
     Returns {'checked': n, 'fixed': m}.
     """
     try:
-        from PyPDF2 import PdfReader  # local import
+        from PyPDF2 import PdfReader
     except Exception:
-        # PyPDF2 not installed or import failed
         return {"checked": 0, "fixed": 0}
 
     bot_ref = db.collection("bots").document(bot_id)
@@ -139,12 +144,63 @@ def salvage_pdf_entries(bot_id: str) -> dict:
         bot_ref.update({"file_data": new_list})
     return {"checked": len(file_list), "fixed": fixed}
 
-# URL
+# -----------------------
+# URL helpers
+# -----------------------
+def scrape_and_add_url(bot_id: str, url: str, scraper_func=None) -> bool:
+    """
+    Scrape the URL (uses scraper_func if provided, otherwise tries to import utils.scraper.scrape_website).
+    Saves scraped text into bots/{bot_id}.scraped_texts[url] and appends url to config.urls (deduped).
+    Returns True on success.
+    """
+    if scraper_func is None:
+        try:
+            from utils.scraper import scrape_website as _scrape
+        except Exception:
+            raise RuntimeError("scraper not available")
+
+        scraper_func = _scrape
+
+    text = ""
+    try:
+        text = scraper_func(url)
+    except Exception as e:
+        raise RuntimeError(f"Scrape failed: {e}")
+
+    text = safe_text(text or "-")
+
+    bot_ref = db.collection("bots").document(bot_id)
+    snap = bot_ref.get()
+    data = snap.to_dict() if snap.exists else {}
+
+    # update scraped_texts map
+    scraped_texts = data.get("scraped_texts", {})
+    scraped_texts[url] = text
+
+    # update config.urls list (dedupe)
+    config = data.get("config", {}) or {}
+    urls = config.get("urls", [])
+    if url not in urls:
+        urls.append(url)
+    config["urls"] = urls
+
+    # Also update primary scraped_text (concatenate/append)
+    primary_scraped = data.get("scraped_text", "") or ""
+    # append new scraped content separated by newline if not already included
+    if text and text != "-" and text not in primary_scraped:
+        primary_scraped = (primary_scraped + "\n" + text).strip()
+
+    bot_ref.update({
+        "scraped_texts": scraped_texts,
+        "config": config,
+        "scraped_text": primary_scraped
+    })
+    return True
 
 def delete_url(bot_id: str, url: str) -> bool:
     """
-    Remove a URL from bot.scraped_texts and from bot.config.urls (Firestore ArrayRemove).
-    Returns True on success, False if bot not found.
+    Remove a URL from bot.scraped_texts and from bot.config.urls.
+    Returns True on success.
     """
     bot_ref = db.collection("bots").document(bot_id)
     bot_doc = bot_ref.get()
@@ -152,24 +208,26 @@ def delete_url(bot_id: str, url: str) -> bool:
         return False
 
     data = bot_doc.to_dict() or {}
+    scraped_texts = data.get("scraped_texts", {}) or {}
+    if url in scraped_texts:
+        scraped_texts.pop(url, None)
 
-    # Remove url entry from scraped_texts map if present
-    current_scraped_texts = data.get("scraped_texts", {})
-    if url in current_scraped_texts:
-        current_scraped_texts.pop(url, None)
+    # remove url from config.urls safely
+    config = data.get("config", {}) or {}
+    urls = config.get("urls", []) or []
+    urls = [u for u in urls if u != url]
+    config["urls"] = urls
 
-    # Update Firestore: set scraped_texts map and remove url from config.urls atomically
-    # Use fa_firestore.ArrayRemove (you imported firestore as fa_firestore)
-    updates = {"scraped_texts": current_scraped_texts}
-    try:
-        # Attempt to remove the url from config.urls array (if it exists)
-        updates["config.urls"] = fa_firestore.ArrayRemove([url])
-    except Exception:
-        # In case ArrayRemove is not available for some reason, fallback to manual removal
-        urls = data.get("config", {}).get("urls", [])
-        if url in urls:
-            urls = [u for u in urls if u != url]
-            updates["config"] = {**(data.get("config", {})), "urls": urls}
+    # Rebuild primary scraped_text from remaining scraped_texts map
+    primary = []
+    for v in scraped_texts.values():
+        if v and v != "-":
+            primary.append(v)
+    primary_scraped = "\n".join(primary).strip()
 
-    bot_ref.update(updates)
+    bot_ref.update({
+        "scraped_texts": scraped_texts,
+        "config": config,
+        "scraped_text": primary_scraped
+    })
     return True
