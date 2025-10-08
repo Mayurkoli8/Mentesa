@@ -53,31 +53,35 @@ def create_and_save_bot():
     st.subheader("✨ Create Your Bot")
     st.write("Describe the bot you want, and we'll generate it with AI.")
 
-    name="Mentesa_Bot"
+    name = "Mentesa_Bot"
     prompt = st.text_area("🤔 What type of bot do you want?")
     url = st.text_input("🌐 (Optional) Website URL for the bot to ingest (include https://)")
-    uploaded_files = st.file_uploader("📂 (Optional) Upload a RAG File (PDF, DOCX, TXT)", type=["pdf", "docx", "txt"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader(
+        "📂 (Optional) Upload RAG Files (PDF, DOCX, TXT)", 
+        type=["pdf", "docx", "txt"], 
+        accept_multiple_files=True
+    )
 
     if st.button("🚀 Create Bot"):
         if not prompt.strip():
             st.warning("Please enter a prompt before generating.")
             return
 
-        # Auto-generate name if not given
         import time
         bot_name = name.strip() if name.strip() else f"Bot_{int(time.time())}"
 
-        # Prepare files payload if a file was uploaded
+        # Prepare files payload if files were uploaded
         files_payload = []
-        if uploaded_file is not None:
-            for uploaded_file in uploaded_files:
+        if uploaded_files:  # <-- use uploaded_files, not uploaded_file
+            import io
+            for f in uploaded_files:
                 try:
-                    data_bytes = uploaded_file.read()
-                    filename = uploaded_file.name
+                    data_bytes = f.read()
+                    filename = f.name
                     content = ""
-    
+
                     ext = filename.lower().rsplit(".", 1)[-1]
-    
+
                     if ext == "pdf":
                         from PyPDF2 import PdfReader
                         reader = PdfReader(io.BytesIO(data_bytes))
@@ -92,17 +96,16 @@ def create_and_save_bot():
                             content = data_bytes.decode("utf-8")
                         except Exception:
                             content = data_bytes.decode("latin-1", errors="ignore")
-    
-                    # sanitize and limit size (avoid huge payloads)
+
                     from utils.file_handle import safe_text
-                    content = safe_text(content)[:15000]  # trim to 15k chars (matching your scraper limit)
+                    content = safe_text(content)[:15000]
                     if not content.strip():
                         content = "-"
-    
+
                     files_payload.append({"name": filename, "text": content})
-    
+
                 except Exception as e:
-                    st.error(f"Failed to read uploaded file: {e}")
+                    st.error(f"Failed to read uploaded file '{f.name}': {e}")
                     return
 
         payload = {
@@ -112,7 +115,6 @@ def create_and_save_bot():
             "config": {},
             "files": files_payload
         }
-
 
         with st.spinner("Generating bot..."):
             try:
