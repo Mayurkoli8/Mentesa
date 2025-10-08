@@ -3,6 +3,7 @@ import uuid
 import re
 import io
 from typing import Tuple
+from datetime import datetime
 from utils.firebase_config import db
 from firebase_admin import firestore as fa_firestore
 
@@ -58,7 +59,7 @@ def upload_file(bot_id: str, filename: str, content: str) -> str:
         "id": str(uuid.uuid4()),
         "name": filename,
         "text": content,
-        "uploaded_at": fa_firestore.SERVER_TIMESTAMP
+        "uploaded_at": datetime.utcnow().isoformat()
     })
 
     # Update Firestore directly (no transaction)
