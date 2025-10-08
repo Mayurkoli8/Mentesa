@@ -487,7 +487,7 @@ def bot_management_ui():
     st.subheader("Current URLs")
     # Fetch fresh data
     bot_doc = db.collection("bots").document(selected_bot_id).get()
-    urls = bot_doc.to_dict().get("config", {}).get("urls", [])
+    urls = bot_doc.to_dict().get("config", {}).get("urls", [].get("url",[]))
     for u in urls:
         col1, col2 = st.columns([5, 1])
         col1.write(u)
