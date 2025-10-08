@@ -228,19 +228,20 @@ def create_bot(bot: BotCreate):
             # truncate and be defensive
             ftext = (ftext[:15000] if len(ftext) > 15000 else ftext)
             file_data.append({"id": str(uuid.uuid4()), "name": fname, "text": ftext})
-    
+
 
     new_bot = {
         "id": str(uuid.uuid4()),
         "name": cfg.get("name", bot.name or "Unnamed Bot"),
         "personality": cfg.get("personality", "Not mentioned on the website"),
-        "config": cfg.get("settings", bot.config or {}),
+        # Move URL into config.urls
+        "config": {**cfg.get("settings", bot.config or {}), "urls": [bot.url] if bot.url else []},
         "created_at": datetime.now().isoformat(),
         "api_key": generate_api_key(),
         "scraped_text": site_text,
-        "url": bot.url,# ✅ store URL too
-        "file_data": file_data, 
+        "file_data": file_data,
     }
+    
 
     bots.append(new_bot)
     save_bots(bots)
