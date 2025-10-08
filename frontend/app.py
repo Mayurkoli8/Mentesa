@@ -331,12 +331,11 @@ def bot_management_ui():
     if uploaded_file:
         filename = uploaded_file.name
         flag = f"uploaded_{selected_bot_id}_{filename}"
-
+    
         if not st.session_state.get(flag):
             try:
                 data_bytes = uploaded_file.read()
                 content = ""
-
                 if filename.lower().endswith(".pdf"):
                     from PyPDF2 import PdfReader
                     reader = PdfReader(io.BytesIO(data_bytes))
@@ -346,29 +345,35 @@ def bot_management_ui():
                         content = data_bytes.decode("utf-8")
                     except Exception:
                         content = data_bytes.decode("latin-1", errors="ignore")
-
-                # sanitize here as well (removes surrogates)
-                content = safe_text(content)
-
+    
                 if not content.strip():
                     content = "-"
-
+    
+                # Lazy import the helper to surface import problems early and inside try/except
+                try:
+                    from utils.file_handle import upload_file, safe_text
+                except Exception as imp_e:
+                    st.error(f"Import failed in frontend: {type(imp_e).__name__}: {imp_e}")
+                    raise
+    
+                # sanitize in frontend too
+                content = safe_text(content)
+    
                 st.session_state[flag] = True
                 upload_file(selected_bot_id, filename, content)
                 st.success(f"Uploaded '{filename}'")
                 st.experimental_rerun()
-
+    
             except Exception as e:
                 st.error(f"Upload failed: {type(e).__name__}: {e}")
                 if flag in st.session_state:
                     del st.session_state[flag]
         else:
             st.info("File already uploaded in this session. If you want to re-upload, delete the previous file first.")
-
-    # List existing RAG files
-    st.subheader("Current RAG Files")
-    file_list = selected_bot_info.get("file_data", []) or []
-
+        # List existing RAG files
+        st.subheader("Current RAG Files")
+        file_list = selected_bot_info.get("file_data", []) or []
+    
     for idx, file_entry in enumerate(file_list):
         col_name, col_del = st.columns([4, 1])
         col_name.write(file_entry.get("name"))

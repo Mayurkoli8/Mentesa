@@ -2,19 +2,15 @@
 from utils.firebase_config import db
 from firebase_admin import firestore as fa_firestore
 import uuid
+import re
 import io
-from typing import Optional
+from typing import Tuple
 
 def safe_text(text: str) -> str:
-    """
-    Remove lone surrogate codepoints and ensure text is UTF-8 safe for Firestore.
-    - removes any code unit in the surrogate range U+D800..U+DFFF
-    - then encodes with 'replace' to avoid encoding errors and decodes back to str
-    """
+    """Make text safe for Firestore (remove surrogates, replace bad bytes)."""
     if text is None:
         return ""
     if not isinstance(text, str):
-        # if bytes, try decode safely
         try:
             text = text.decode("utf-8")
         except Exception:
@@ -23,22 +19,19 @@ def safe_text(text: str) -> str:
             except Exception:
                 text = str(text)
 
-    # remove lone surrogate code units (prevents "surrogates not allowed")
-    # note: this removes characters in the surrogate range
+    # remove lone surrogate code units
     text = re.sub(r'[\uD800-\uDFFF]', '', text)
-
-    # finally ensure any remaining problematic chars are replaced
     safe = text.encode("utf-8", errors="replace").decode("utf-8")
     return safe
 
 def upload_file(bot_id: str, filename: str, content: str) -> str:
     """
-    Store (or replace) a single file entry in bots/{bot_id}.file_data atomically.
-    `content` should be the extracted text (string). We sanitize it here as well.
+    Atomically store (or replace) a single file entry in bots/{bot_id}.file_data.
+    content should already be plain text (string). This function sanitizes it again.
     """
     content = safe_text(content or "")
     if not content.strip():
-        content = "-"  # sentinel for "no usable text"
+        content = "-"
 
     bot_ref = db.collection("bots").document(bot_id)
 
@@ -47,10 +40,9 @@ def upload_file(bot_id: str, filename: str, content: str) -> str:
         data = snap.to_dict() or {}
         file_list = data.get("file_data", []) if data else []
 
-        # Remove any existing entries with same filename
+        # remove tombstones with same name
         file_list = [f for f in file_list if f.get("name") != filename]
 
-        # Append a single entry
         file_list.append({
             "id": str(uuid.uuid4()),
             "name": filename,
@@ -58,7 +50,6 @@ def upload_file(bot_id: str, filename: str, content: str) -> str:
             "uploaded_at": fa_firestore.SERVER_TIMESTAMP
         })
 
-        # Use update for existing doc, or set if missing
         if snap.exists:
             transaction.update(bot_ref, {"file_data": file_list})
         else:
@@ -76,6 +67,39 @@ def delete_file(bot_id: str, filename: str) -> bool:
     new_list = [f for f in file_list if f.get("name") != filename]
     bot_ref.update({"file_data": new_list})
     return True
+
+def salvage_pdf_entries(bot_id: str) -> dict:
+    """
+    Try to recover entries that accidentally contain raw PDF bytes stored as text.
+    Returns a dict {checked: n, fixed: m}.
+    """
+    from PyPDF2 import PdfReader  # local import
+    bot_ref = db.collection("bots").document(bot_id)
+    snap = bot_ref.get()
+    if not snap.exists:
+        return {"checked": 0, "fixed": 0}
+    file_list = snap.to_dict().get("file_data", []) or []
+    fixed = 0
+    new_list = []
+    for f in file_list:
+        name = f.get("name")
+        text = f.get("text", "") or ""
+        if isinstance(text, str) and text.startswith("%PDF-"):
+            try:
+                pdf_bytes = text.encode("latin-1")
+                reader = PdfReader(io.BytesIO(pdf_bytes))
+                extracted = "\n".join([p.extract_text() or "" for p in reader.pages]).strip()
+                if extracted:
+                    f["text"] = safe_text(extracted)
+                    fixed += 1
+                else:
+                    f["text"] = "-"
+            except Exception:
+                f["text"] = "-"
+        new_list.append(f)
+    if new_list != file_list:
+        bot_ref.update({"file_data": new_list})
+    return {"checked": len(file_list), "fixed": fixed}
 
 # URL
 
