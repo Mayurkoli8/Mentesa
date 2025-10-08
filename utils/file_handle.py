@@ -144,17 +144,11 @@ def salvage_pdf_entries(bot_id: str) -> dict:
 # URL helpers
 # -----------------------
 def scrape_and_add_url(bot_id: str, url: str, scraper_func=None) -> bool:
-    """
-    Scrape the URL (uses scraper_func if provided, otherwise tries to import utils.scraper.scrape_website).
-    Saves scraped text into bots/{bot_id}.scraped_texts[url] and appends url to config.urls (deduped).
-    Returns True on success.
-    """
     if scraper_func is None:
         try:
             from utils.scraper import scrape_website as _scrape
         except Exception:
             raise RuntimeError("scraper not available")
-
         scraper_func = _scrape
 
     text = ""
@@ -169,28 +163,37 @@ def scrape_and_add_url(bot_id: str, url: str, scraper_func=None) -> bool:
     snap = bot_ref.get()
     data = snap.to_dict() if snap.exists else {}
 
-    # update scraped_texts map
+    # --- update scraped_texts map ---
     scraped_texts = data.get("scraped_texts", {})
     scraped_texts[url] = text
 
-    # update config.urls list (dedupe)
+    # --- update config.urls list (dedupe) ---
     config = data.get("config", {}) or {}
     urls = config.get("urls", [])
     if url not in urls:
         urls.append(url)
     config["urls"] = urls
 
-    # Also update primary scraped_text (concatenate/append)
+    # --- update primary scraped_text ---
     primary_scraped = data.get("scraped_text", "") or ""
-    # append new scraped content separated by newline if not already included
     if text and text != "-" and text not in primary_scraped:
         primary_scraped = (primary_scraped + "\n" + text).strip()
 
+    # --- Add to file_data like a file ---
+    file_data = data.get("file_data", [])
+    # generate a filename from the URL
+    filename = f"url_{url.split('//')[-1].replace('/', '_')}.txt"
+    if not any(f.get("name") == filename for f in file_data):
+        file_data.append({"id": str(uuid.uuid4()), "name": filename, "text": text})
+
+    # --- Update Firestore ---
     bot_ref.update({
         "scraped_texts": scraped_texts,
         "config": config,
-        "scraped_text": primary_scraped
+        "scraped_text": primary_scraped,
+        "file_data": file_data
     })
+
     return True
 
 def delete_url(bot_id: str, url: str) -> bool:
