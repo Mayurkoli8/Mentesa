@@ -56,7 +56,7 @@ def create_and_save_bot():
     name="Mentesa_Bot"
     prompt = st.text_area("🤔 What type of bot do you want?")
     url = st.text_input("🌐 (Optional) Website URL for the bot to ingest (include https://)")
-    uploaded_file = st.file_uploader("Upload a RAG File (optional)", type=["pdf", "docx", "txt"], accept_multiple_files=True)
+    uploaded_file = st.file_uploader("📂 Upload a RAG File (optional)", type=["pdf", "docx", "txt"], accept_multiple_files=True)
 
     if st.button("🚀 Create Bot"):
         if not prompt.strip():
