@@ -1,10 +1,10 @@
 # utils/file_handle.py
-from utils.firebase_config import db
-from firebase_admin import firestore as fa_firestore
 import uuid
 import re
 import io
 from typing import Tuple
+from utils.firebase_config import db
+from firebase_admin import firestore as fa_firestore
 
 # -----------------------
 # Text safety helpers

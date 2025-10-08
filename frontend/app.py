@@ -20,7 +20,6 @@ from firebase_admin import firestore as fa_firestore
 from streamlit.components.v1 import html as components_html
 from utils.llm import generate_bot_config_gemini, chat_with_gemini
 
-from utils.firebase_config import db
 BACKEND="https://mentesav8.onrender.com"
 
 from utils.file_handle import safe_text
