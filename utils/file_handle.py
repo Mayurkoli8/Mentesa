@@ -37,38 +37,35 @@ def safe_text(text: str) -> str:
 # -----------------------
 def upload_file(bot_id: str, filename: str, content: str) -> str:
     """
-    Atomically store (or replace) a single file entry in bots/{bot_id}.file_data.
-    content should be the extracted text (string). Function sanitizes again.
-    Returns filename on success.
+    Store (or replace) a file entry safely without run_transaction.
+    Uses explicit transaction object instead.
     """
     content = safe_text(content or "")
     if not content.strip():
-        content = "-"  # sentinel for "no usable text"
+        content = "-"
 
     bot_ref = db.collection("bots").document(bot_id)
 
-    def txn_update(transaction):
-        snap = bot_ref.get(transaction=transaction)
+    # Define transactional function
+    @fa_firestore.transactional
+    def update_in_transaction(transaction, ref, filename, content):
+        snap = ref.get(transaction=transaction)
         data = snap.to_dict() or {}
         file_list = data.get("file_data", []) if data else []
-
-        # remove existing entries with same filename
         file_list = [f for f in file_list if f.get("name") != filename]
-
         file_list.append({
             "id": str(uuid.uuid4()),
             "name": filename,
             "text": content,
             "uploaded_at": fa_firestore.SERVER_TIMESTAMP
         })
-
-        # update or create
         if snap.exists:
-            transaction.update(bot_ref, {"file_data": file_list})
+            transaction.update(ref, {"file_data": file_list})
         else:
-            transaction.set(bot_ref, {"file_data": file_list}, merge=True)
+            transaction.set(ref, {"file_data": file_list}, merge=True)
 
-    db.run_transaction(txn_update)
+    transaction = db.transaction()
+    update_in_transaction(transaction, bot_ref, filename, content)
     return filename
 
 def delete_file(bot_id: str, filename: str) -> bool:
