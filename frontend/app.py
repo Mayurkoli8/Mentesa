@@ -331,9 +331,6 @@ def bot_management_ui():
     from utils.file_handle import upload_file, safe_text   # ensure safe_text is importable
 
     # Upload Files
-    import io
-
-    # Upload Files
     uploaded_file = st.file_uploader("Upload a RAG File", key=f"file_{selected_bot_id}")
     if uploaded_file:
         filename = uploaded_file.name
