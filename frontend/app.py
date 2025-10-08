@@ -17,7 +17,7 @@ from ui import apply_custom_styles, show_header, logo_animation
 from utils.firebase_config import db
 BACKEND="https://mentesav8.onrender.com"
 
-
+from utils.file_handle import safe_text
 # --- PAGE CONFIG ---
 st.set_page_config(
     page_title="Mentesa V7",
@@ -334,13 +334,13 @@ def bot_management_ui():
     if uploaded_file:
         filename = uploaded_file.name
         flag = f"uploaded_{selected_bot_id}_{filename}"
-    
+
         # prevent double-processing on rerun
         if not st.session_state.get(flag):
             try:
                 data_bytes = uploaded_file.read()  # bytes read once
                 content = ""
-    
+
                 if filename.lower().endswith(".pdf"):
                     from PyPDF2 import PdfReader
                     reader = PdfReader(io.BytesIO(data_bytes))
@@ -350,33 +350,33 @@ def bot_management_ui():
                         content = data_bytes.decode("utf-8")
                     except Exception:
                         content = data_bytes.decode("latin-1", errors="ignore")
-    
+
                 # Lazy import helpers to surface import errors
                 try:
                     from utils.file_handle import upload_file, safe_text
                 except Exception as imp_e:
                     st.error(f"Import failed in frontend: {type(imp_e).__name__}: {imp_e}")
                     raise
-    
+
                 # sanitize locally too
                 content = safe_text(content)
-    
+
                 if not content.strip():
                     content = "-"
-    
+
                 st.session_state[flag] = True
                 upload_file(selected_bot_id, filename, content)
-    
+
                 st.success(f"Uploaded '{filename}'")
                 st.experimental_rerun()
-    
+
             except Exception as e:
                 st.error(f"Upload failed: {type(e).__name__}: {e}")
                 if flag in st.session_state:
                     del st.session_state[flag]
         else:
             st.info("File already uploaded in this session. If you want to re-upload, delete the previous file first.")
-    
+
     # List existing RAG files
     st.subheader("Current RAG Files")
     file_list = selected_bot_info.get("file_data", []) or []
