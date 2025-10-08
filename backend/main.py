@@ -96,6 +96,7 @@ class BotCreate(BaseModel):
     prompt: Optional[str] = None
     url: Optional[str] = None
     config: Dict[str, Any] = Field(default_factory=dict)
+    files: Optional[List[Dict[str, str]]] = Field(default_factory=list)
 
 class BotPublic(BaseModel):
     id: str
@@ -216,6 +217,18 @@ def create_bot(bot: BotCreate):
             "personality": "Not mentioned on the website",
             "settings": {}
         }
+    
+    # sanitize incoming files (defensive)
+    incoming_files = bot.files if getattr(bot, "files", None) else []
+    file_data = []
+    for f in incoming_files:
+        if isinstance(f, dict):
+            fname = f.get("name") or "file"
+            ftext = f.get("text") or ""
+            # truncate and be defensive
+            ftext = (ftext[:15000] if len(ftext) > 15000 else ftext)
+            file_data.append({"id": str(uuid.uuid4()), "name": fname, "text": ftext})
+    
 
     new_bot = {
         "id": str(uuid.uuid4()),
@@ -225,7 +238,8 @@ def create_bot(bot: BotCreate):
         "created_at": datetime.now().isoformat(),
         "api_key": generate_api_key(),
         "scraped_text": site_text,
-        "url": bot.url  # ✅ store URL too
+        "url": bot.url,# ✅ store URL too
+        "file_data": file_data, 
     }
 
     bots.append(new_bot)

@@ -47,8 +47,6 @@ logo_animation()
 # show_header()
 
 # ---------------- BOT CREATION ----------------
-import uuid
-import streamlit as st
 from utils.llm import generate_bot_config_gemini
 
 def create_and_save_bot():
@@ -58,6 +56,7 @@ def create_and_save_bot():
     name="Mentesa_Bot"
     prompt = st.text_area("🤔 What type of bot do you want?")
     url = st.text_input("🌐 (Optional) Website URL for the bot to ingest (include https://)")
+    uploaded_file = st.file_uploader("Upload a RAG File (optional)", type=["pdf", "docx", "txt"], accept_multiple_files=True)
 
     if st.button("🚀 Create Bot"):
         if not prompt.strip():
@@ -68,11 +67,50 @@ def create_and_save_bot():
         import time
         bot_name = name.strip() if name.strip() else f"Bot_{int(time.time())}"
 
+        # Prepare files payload if a file was uploaded
+        files_payload = []
+        if uploaded_file is not None:
+            for uploaded_file in uploaded_files:
+                try:
+                    data_bytes = uploaded_file.read()
+                    filename = uploaded_file.name
+                    content = ""
+    
+                    ext = filename.lower().rsplit(".", 1)[-1]
+    
+                    if ext == "pdf":
+                        from PyPDF2 import PdfReader
+                        reader = PdfReader(io.BytesIO(data_bytes))
+                        content = "\n".join([p.extract_text() or "" for p in reader.pages])
+                    elif ext == "docx":
+                        from docx import Document
+                        doc = Document(io.BytesIO(data_bytes))
+                        paragraphs = [p.text for p in doc.paragraphs]
+                        content = "\n".join(paragraphs)
+                    else:  # txt or fallback
+                        try:
+                            content = data_bytes.decode("utf-8")
+                        except Exception:
+                            content = data_bytes.decode("latin-1", errors="ignore")
+    
+                    # sanitize and limit size (avoid huge payloads)
+                    from utils.file_handle import safe_text
+                    content = safe_text(content)[:15000]  # trim to 15k chars (matching your scraper limit)
+                    if not content.strip():
+                        content = "-"
+    
+                    files_payload.append({"name": filename, "text": content})
+    
+                except Exception as e:
+                    st.error(f"Failed to read uploaded file: {e}")
+                    return
+
         payload = {
             "name": bot_name.strip(),
             "prompt": prompt.strip(),
             "url": url.strip() if url.strip() else None,
-            "config": {}
+            "config": {},
+            "files": files_payload
         }
 
 
@@ -86,7 +124,11 @@ def create_and_save_bot():
         if response.status_code in (200, 201):
             data = response.json()
             bot_name = data["bot"]["name"]
-            st.success(f"✅ Bot '{bot_name}' created and saved!")
+            if files_payload:
+                uploaded_names = ", ".join([f['name'] for f in files_payload])
+                st.success(f"✅ Bot '{bot_name}' created and saved with file(s): {uploaded_names}")
+            else:
+                st.success(f"✅ Bot '{bot_name}' created and saved!")
         else:
             st.error(f"Failed to save bot: {response.text}")
 
@@ -349,25 +391,25 @@ def bot_management_ui():
             try:
                 data_bytes = uploaded_file.read()
                 content = ""
-                
+
                 file_ext = filename.lower().split(".")[-1]
-                
+
                 if file_ext == "pdf":
                     from PyPDF2 import PdfReader
                     reader = PdfReader(io.BytesIO(data_bytes))
                     content = "\n".join([p.extract_text() or "" for p in reader.pages])
-                
+
                 elif file_ext == "docx":
                     from docx import Document
                     doc = Document(io.BytesIO(data_bytes))
                     content = "\n".join([p.text for p in doc.paragraphs])
-                
+
                 else:
                     try:
                         content = data_bytes.decode("utf-8")
                     except Exception:
                         content = data_bytes.decode("latin-1", errors="ignore")
-                
+
                 from utils.file_handle import upload_file, safe_text
                 content = safe_text(content)
                 if not content.strip():
