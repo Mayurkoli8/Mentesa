@@ -349,17 +349,25 @@ def bot_management_ui():
             try:
                 data_bytes = uploaded_file.read()
                 content = ""
-
-                if filename.lower().endswith(".pdf"):
+                
+                file_ext = filename.lower().split(".")[-1]
+                
+                if file_ext == "pdf":
                     from PyPDF2 import PdfReader
                     reader = PdfReader(io.BytesIO(data_bytes))
                     content = "\n".join([p.extract_text() or "" for p in reader.pages])
+                
+                elif file_ext == "docx":
+                    from docx import Document
+                    doc = Document(io.BytesIO(data_bytes))
+                    content = "\n".join([p.text for p in doc.paragraphs])
+                
                 else:
                     try:
                         content = data_bytes.decode("utf-8")
                     except Exception:
                         content = data_bytes.decode("latin-1", errors="ignore")
-
+                
                 from utils.file_handle import upload_file, safe_text
                 content = safe_text(content)
                 if not content.strip():
