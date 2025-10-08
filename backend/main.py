@@ -151,6 +151,9 @@ def get_bot(bot_id: str):
 
 @app.post("/bots", response_model=Dict[str, Any])
 def create_bot(bot: BotCreate):
+    import re, json, uuid
+    from datetime import datetime
+
     site_text = ""
     if bot.url:
         try:
@@ -198,28 +201,26 @@ def create_bot(bot: BotCreate):
           "settings": {{}}
         }}
         """
-    import re, json, uuid
-    from datetime import datetime
-    
+
     # --- Generate bot config from Gemini ---
     try:
         response = model.generate_content(prompt_text)
         raw = response.text.strip()
-    
-        # ✅ Extract JSON only
+
+        # Extract JSON only
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         if match:
             cfg = json.loads(match.group(0))
         else:
             raise ValueError("No JSON found in Gemini response")
-    
+
     except Exception:
         cfg = {
             "name": bot.name or "Unnamed Bot",
             "personality": "Not mentioned on the website",
             "settings": {}
         }
-    
+
     # --- Sanitize incoming files ---
     incoming_files = getattr(bot, "files", []) or []
     file_data = []
@@ -229,12 +230,12 @@ def create_bot(bot: BotCreate):
             ftext = f.get("text") or ""
             ftext = ftext[:15000]  # truncate to 15k chars
             file_data.append({"id": str(uuid.uuid4()), "name": fname, "text": ftext})
-    
+
     # --- Merge frontend URL with Gemini config safely ---
     config_data = cfg.get("settings", {})
     if not isinstance(config_data, dict):
         config_data = {}
-    
+
     # Preserve existing URLs from Gemini + add frontend URL
     urls_list = config_data.get("urls", [])
     frontend_url = getattr(bot, "config", {}).get("urls", [])
@@ -242,7 +243,7 @@ def create_bot(bot: BotCreate):
         if u and u not in urls_list:
             urls_list.append(u)
     config_data["urls"] = urls_list
-    
+
     # --- Create new bot object ---
     new_bot = {
         "id": str(uuid.uuid4()),
@@ -254,18 +255,18 @@ def create_bot(bot: BotCreate):
         "scraped_text": site_text,
         "file_data": file_data,
     }
-    
+
     # --- Save bot ---
     bots.append(new_bot)
     save_bots(bots)
-    
+
     # --- Return sanitized response ---
     return {
         "bot": sanitize_public(new_bot),
         "api_key": new_bot["api_key"],
         "api_key_masked": mask_key(new_bot["api_key"]),
     }
-    
+
 @app.delete("/bots/{bot_id}")
 def delete_bot(bot_id: str):
     global bots
