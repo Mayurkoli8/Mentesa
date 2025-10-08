@@ -20,7 +20,7 @@ BACKEND="https://mentesav8.onrender.com"
 from utils.file_handle import safe_text
 # --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="Mentesa V7",
+    page_title="Mentesa V8",
     page_icon="frontend/logo.png",
     layout="centered",
     initial_sidebar_state="expanded"
