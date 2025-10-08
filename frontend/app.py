@@ -336,47 +336,51 @@ def bot_management_ui():
     if uploaded_file:
         filename = uploaded_file.name
         flag = f"uploaded_{selected_bot_id}_{filename}"
+        just_flag = f"just_uploaded_{selected_bot_id}"
 
-        if not st.session_state.get(flag):
-            try:
-                data_bytes = uploaded_file.read()
-                content = ""
+        # If just uploaded this moment
+        if st.session_state.get(just_flag):
+            st.success(f"✅ '{filename}' uploaded successfully!")
+            # Clear this transient flag so it doesn’t trigger again
+            del st.session_state[just_flag]
+            st.stop()
 
-                if filename.lower().endswith(".pdf"):
-                    from PyPDF2 import PdfReader
-                    reader = PdfReader(io.BytesIO(data_bytes))
-                    content = "\n".join([p.extract_text() or "" for p in reader.pages])
-                else:
-                    try:
-                        content = data_bytes.decode("utf-8")
-                    except Exception:
-                        content = data_bytes.decode("latin-1", errors="ignore")
-
-                from utils.file_handle import upload_file, safe_text
-                content = safe_text(content)
-
-                if not content.strip():
-                    content = "-"
-
-                upload_file(selected_bot_id, filename, content)
-
-                # ✅ Only mark it uploaded AFTER success
-                st.session_state[flag] = True
-
-                st.success(f"✅ '{filename}' uploaded successfully!")
-                st.toast("Upload complete", icon="📂")
-
-                # Optional: auto rerun after 2 sec to clear uploader
-                import time
-                time.sleep(2)
-                st.rerun()
-
-            except Exception as e:
-                st.error(f"Upload failed: {type(e).__name__}: {e}")
-                if flag in st.session_state:
-                    del st.session_state[flag]
-        else:
+        # Prevent reprocessing same file again
+        if st.session_state.get(flag):
             st.info("File already uploaded in this session. If you want to re-upload, delete the previous file first.")
+            st.stop()
+
+        try:
+            data_bytes = uploaded_file.read()
+            content = ""
+
+            if filename.lower().endswith(".pdf"):
+                from PyPDF2 import PdfReader
+                reader = PdfReader(io.BytesIO(data_bytes))
+                content = "\n".join([p.extract_text() or "" for p in reader.pages])
+            else:
+                try:
+                    content = data_bytes.decode("utf-8")
+                except Exception:
+                    content = data_bytes.decode("latin-1", errors="ignore")
+
+            from utils.file_handle import upload_file, safe_text
+            content = safe_text(content)
+            if not content.strip():
+                content = "-"
+
+            upload_file(selected_bot_id, filename, content)
+
+            # Mark uploaded and show success only once
+            st.session_state[flag] = True
+            st.session_state[just_flag] = True
+
+            st.rerun()  # triggers rerun so success shows cleanly
+
+        except Exception as e:
+            st.error(f"Upload failed: {type(e).__name__}: {e}")
+            if flag in st.session_state:
+                del st.session_state[flag]
 
     # List existing RAG files
     st.subheader("Current RAG Files")
