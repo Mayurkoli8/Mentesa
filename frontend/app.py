@@ -336,12 +336,10 @@ def bot_management_ui():
     if uploaded_file:
         filename = uploaded_file.name
         flag = f"uploaded_{selected_bot_id}_{filename}"
-        st.rerun()
 
-        # prevent double-processing on rerun
         if not st.session_state.get(flag):
             try:
-                data_bytes = uploaded_file.read()  # bytes read once
+                data_bytes = uploaded_file.read()
                 content = ""
 
                 if filename.lower().endswith(".pdf"):
@@ -354,23 +352,23 @@ def bot_management_ui():
                     except Exception:
                         content = data_bytes.decode("latin-1", errors="ignore")
 
-                # Lazy import helpers to surface import errors
-                try:
-                    from utils.file_handle import upload_file, safe_text
-                except Exception as imp_e:
-                    st.error(f"Import failed in frontend: {type(imp_e).__name__}: {imp_e}")
-                    raise
-
-                # sanitize locally too
+                from utils.file_handle import upload_file, safe_text
                 content = safe_text(content)
 
                 if not content.strip():
                     content = "-"
 
-                st.session_state[flag] = True
                 upload_file(selected_bot_id, filename, content)
 
-                st.success(f"Uploaded '{filename}'")
+                # ✅ Only mark it uploaded AFTER success
+                st.session_state[flag] = True
+
+                st.success(f"✅ '{filename}' uploaded successfully!")
+                st.toast("Upload complete", icon="📂")
+
+                # Optional: auto rerun after 2 sec to clear uploader
+                import time
+                time.sleep(2)
                 st.rerun()
 
             except Exception as e:
