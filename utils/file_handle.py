@@ -37,8 +37,7 @@ def safe_text(text: str) -> str:
 # -----------------------
 def upload_file(bot_id: str, filename: str, content: str) -> str:
     """
-    Store (or replace) a file entry safely without run_transaction.
-    Uses explicit transaction object instead.
+    Safe Firestore update without transaction.
     """
     content = safe_text(content or "")
     if not content.strip():
@@ -46,27 +45,26 @@ def upload_file(bot_id: str, filename: str, content: str) -> str:
 
     bot_ref = db.collection("bots").document(bot_id)
 
-    # Define transactional function
-    @fa_firestore.transactional
-    def update_in_transaction(transaction, ref, filename, content):
-        snap = ref.get(transaction=transaction)
-        data = snap.to_dict() or {}
-        file_list = data.get("file_data", []) if data else []
-        file_list = [f for f in file_list if f.get("name") != filename]
-        file_list.append({
-            "id": str(uuid.uuid4()),
-            "name": filename,
-            "text": content,
-            "uploaded_at": fa_firestore.SERVER_TIMESTAMP
-        })
-        if snap.exists:
-            transaction.update(ref, {"file_data": file_list})
-        else:
-            transaction.set(ref, {"file_data": file_list}, merge=True)
+    # Get existing bot data
+    snap = bot_ref.get()
+    data = snap.to_dict() or {}
+    file_list = data.get("file_data", []) if data else []
 
-    transaction = db.transaction()
-    update_in_transaction(transaction, bot_ref, filename, content)
+    # Remove any existing entries with same filename
+    file_list = [f for f in file_list if f.get("name") != filename]
+
+    # Append a single sanitized entry
+    file_list.append({
+        "id": str(uuid.uuid4()),
+        "name": filename,
+        "text": content,
+        "uploaded_at": fa_firestore.SERVER_TIMESTAMP
+    })
+
+    # Update Firestore directly (no transaction)
+    bot_ref.set({"file_data": file_list}, merge=True)
     return filename
+
 
 def delete_file(bot_id: str, filename: str) -> bool:
     """Delete a file entry by filename from bots/{bot_id}.file_data"""
