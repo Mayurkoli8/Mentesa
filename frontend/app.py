@@ -336,6 +336,7 @@ def bot_management_ui():
     if uploaded_file:
         filename = uploaded_file.name
         flag = f"uploaded_{selected_bot_id}_{filename}"
+        st.rerun()
 
         # prevent double-processing on rerun
         if not st.session_state.get(flag):
