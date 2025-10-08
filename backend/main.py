@@ -198,59 +198,74 @@ def create_bot(bot: BotCreate):
           "settings": {{}}
         }}
         """
-
-    import re, json
+    import re, json, uuid
+    from datetime import datetime
+    
+    # --- Generate bot config from Gemini ---
     try:
         response = model.generate_content(prompt_text)
         raw = response.text.strip()
-
+    
         # ✅ Extract JSON only
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         if match:
             cfg = json.loads(match.group(0))
         else:
             raise ValueError("No JSON found in Gemini response")
-
-    except Exception as e:
+    
+    except Exception:
         cfg = {
             "name": bot.name or "Unnamed Bot",
             "personality": "Not mentioned on the website",
             "settings": {}
         }
     
-    # sanitize incoming files (defensive)
-    incoming_files = bot.files if getattr(bot, "files", None) else []
+    # --- Sanitize incoming files ---
+    incoming_files = getattr(bot, "files", []) or []
     file_data = []
     for f in incoming_files:
         if isinstance(f, dict):
             fname = f.get("name") or "file"
             ftext = f.get("text") or ""
-            # truncate and be defensive
-            ftext = (ftext[:15000] if len(ftext) > 15000 else ftext)
+            ftext = ftext[:15000]  # truncate to 15k chars
             file_data.append({"id": str(uuid.uuid4()), "name": fname, "text": ftext})
-
-
+    
+    # --- Merge frontend URL with Gemini config safely ---
+    config_data = cfg.get("settings", {})
+    if not isinstance(config_data, dict):
+        config_data = {}
+    
+    # Preserve existing URLs from Gemini + add frontend URL
+    urls_list = config_data.get("urls", [])
+    frontend_url = getattr(bot, "config", {}).get("urls", [])
+    for u in frontend_url:
+        if u and u not in urls_list:
+            urls_list.append(u)
+    config_data["urls"] = urls_list
+    
+    # --- Create new bot object ---
     new_bot = {
         "id": str(uuid.uuid4()),
         "name": cfg.get("name", bot.name or "Unnamed Bot"),
         "personality": cfg.get("personality", "Not mentioned on the website"),
-        # Move URL into config.urls
-        "config": {**cfg.get("settings", bot.config or {}), "urls": [bot.url] if bot.url else []},
+        "config": config_data,
         "created_at": datetime.now().isoformat(),
         "api_key": generate_api_key(),
         "scraped_text": site_text,
         "file_data": file_data,
     }
     
-
+    # --- Save bot ---
     bots.append(new_bot)
     save_bots(bots)
+    
+    # --- Return sanitized response ---
     return {
         "bot": sanitize_public(new_bot),
         "api_key": new_bot["api_key"],
         "api_key_masked": mask_key(new_bot["api_key"]),
     }
-
+    
 @app.delete("/bots/{bot_id}")
 def delete_bot(bot_id: str):
     global bots
