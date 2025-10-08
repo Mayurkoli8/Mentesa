@@ -7,6 +7,10 @@ import requests
 import google.generativeai
 
 
+from utils.firebase_config import db
+from firebase_admin import firestore as fa_firestore
+
+
 # Add root dir so utils/ can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -368,7 +372,7 @@ def bot_management_ui():
                 upload_file(selected_bot_id, filename, content)
 
                 st.success(f"Uploaded '{filename}'")
-                st.experimental_rerun()
+                st.rerun()
 
             except Exception as e:
                 st.error(f"Upload failed: {type(e).__name__}: {e}")
