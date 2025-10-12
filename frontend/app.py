@@ -36,6 +36,18 @@ st.markdown("""
     <meta name="keywords" content="AI bots, chatbot builder, Mentesa, generative AI, Streamlit">
 """, unsafe_allow_html=True)
 
+from auth import auth_ui, require_login
+
+st.set_page_config(page_title="Mentesa")
+
+# show auth UI (you can place this in a dedicated login page/tab)
+auth_ui()
+
+# For any page or operation that must be protected:
+# user = require_login()
+# uid = user['uid']
+# now query Firestore for bots owned by uid, e.g.:
+# db.collection("bots").where("owner_uid", "==", uid).stream()
 
 
 
