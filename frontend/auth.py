@@ -10,7 +10,7 @@ from google.oauth2 import service_account
 FIREBASE_API_KEY = os.environ.get("FIREBASE_API_KEY")
 SERVICE_ACCOUNT_JSON_B64 = os.environ.get("SERVICE_ACCOUNT_JSON")
 
-if not FIREBASE_API_KEY or not SERVICE_ACCOUNT_JSON:
+if not FIREBASE_API_KEY or not SERVICE_ACCOUNT_JSON_B64:
     # In production, raise or handle securely; here we show a friendly message.
     st.error("Set FIREBASE_API_KEY and SERVICE_ACCOUNT_JSON environment variables.")
     st.stop()
