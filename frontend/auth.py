@@ -6,9 +6,10 @@ import firebase_admin
 from firebase_admin import auth as admin_auth, firestore
 from google.oauth2 import service_account
 
+
 # ------------------ CONFIG ------------------
 FIREBASE_API_KEY = os.environ.get("FIREBASE_API_KEY")
-SERVICE_ACCOUNT_JSON_B64 = os.environ.get("SERVICE_ACCOUNT_JSON")
+SERVICE_ACCOUNT_JSON_B64 = os.environ.get("SERVICE_ACCOUNT_JSON_B64")
 
 if not FIREBASE_API_KEY or not SERVICE_ACCOUNT_JSON_B64:
     # In production, raise or handle securely; here we show a friendly message.
