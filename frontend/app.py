@@ -37,11 +37,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# Apply styles
-apply_custom_styles()
+
 
 # Logo Mentesa animation
 logo_animation()
+
+
+# Apply styles
+apply_custom_styles()
+
 
 # # Show header
 # show_header()
