@@ -1,26 +1,31 @@
 # auth.py
 import os
-import requests
 import streamlit as st
+import requests
 import firebase_admin
 from firebase_admin import auth as admin_auth, firestore
-from google.oauth2 import service_account
-
+import json, base64
 
 # ------------------ CONFIG ------------------
 FIREBASE_API_KEY = os.environ.get("FIREBASE_API_KEY")
 SERVICE_ACCOUNT_JSON_B64 = os.environ.get("SERVICE_ACCOUNT_JSON_B64")
 
 if not FIREBASE_API_KEY or not SERVICE_ACCOUNT_JSON_B64:
-    # In production, raise or handle securely; here we show a friendly message.
-    st.error("Set FIREBASE_API_KEY and SERVICE_ACCOUNT_JSON environment variables.")
+    st.error("Set FIREBASE_API_KEY and SERVICE_ACCOUNT_JSON_B64 environment variables.")
     st.stop()
 
-# Initialize Firebase Admin SDK (idempotent)
+# Initialize Firebase Admin SDK
 if not firebase_admin._apps:
-    firebase_admin.initialize_app(firebase_admin.credentials.Certificate(SERVICE_ACCOUNT_JSON))
-db = firestore.client()
+    try:
+        service_account_json = base64.b64decode(SERVICE_ACCOUNT_JSON_B64).decode("utf-8")
+        service_account_info = json.loads(service_account_json)
+        cred = firebase_admin.credentials.Certificate(service_account_info)
+        firebase_admin.initialize_app(cred)
+    except Exception as e:
+        st.error(f"Firebase init error: {e}")
+        st.stop()
 
+db = firestore.client()
 FIREBASE_REST_BASE = "https://identitytoolkit.googleapis.com/v1"
 
 # ------------------ Helper functions ------------------
@@ -36,132 +41,105 @@ def rest_sign_in(email: str, password: str):
 def rest_send_password_reset(email: str):
     return _rest_post("accounts:sendOobCode", {"requestType": "PASSWORD_RESET", "email": email})
 
-def rest_send_verification_email(id_token: str):
-    return _rest_post("accounts:sendOobCode", {"requestType": "VERIFY_EMAIL", "idToken": id_token})
-
 # ------------------ Auth operations ------------------
-# ------------------ Auth operations ------------------
-def signup_user(display_name: str, email: str, password: str):
-    """
-    Creates a Firebase Auth user via Admin SDK, creates Firestore profile,
-    and generates a verification link (displayed in Streamlit).
-    """
+def signup_user(email: str, password: str, display_name: str):
+    """Create Firebase user, Firestore profile, generate verification link"""
     user = admin_auth.create_user(email=email, password=password, display_name=display_name)
     uid = user.uid
 
-    profile = {
+    db.collection("users").document(uid).set({
         "displayName": display_name,
         "email": email,
         "createdAt": firestore.SERVER_TIMESTAMP,
         "roles": {"user": True},
-    }
-    db.collection("users").document(uid).set(profile)
+    })
 
-    # Generate email verification link (Admin SDK)
-    try:
-        verification_link = admin_auth.generate_email_verification_link(email)
-    except Exception as e:
-        verification_link = None
+    # Generate verification link
+    verification_link = admin_auth.generate_email_verification_link(email)
 
-    return {
-        "uid": uid,
-        "email": email,
-        "displayName": display_name,
-        "verificationLink": verification_link,
-        "emailVerified": False
-    }
+    return {"uid": uid, "email": email, "displayName": display_name, "verificationLink": verification_link, "emailVerified": False}
 
 def login_user(email: str, password: str):
-    """
-    Sign in using REST API and verify token server-side.
-    Returns session dict including emailVerified flag.
-    """
+    """Sign in via REST API and check emailVerified"""
     resp = rest_sign_in(email, password)
     id_token = resp["idToken"]
     uid = resp["localId"]
-
     decoded = admin_auth.verify_id_token(id_token)
-    return {"uid": uid, "idToken": id_token, "refreshToken": resp["refreshToken"], "emailVerified": decoded.get("email_verified", False)}
+    email_verified = decoded.get("email_verified", False)
+
+    profile = db.collection("users").document(uid).get()
+    display_name = profile.to_dict().get("displayName") if profile.exists else ""
+
+    return {"uid": uid, "email": email, "displayName": display_name, "emailVerified": email_verified}
 
 def send_password_reset(email: str):
     return rest_send_password_reset(email)
 
-def get_user_profile(uid: str):
-    doc = db.collection("users").document(uid).get()
-    return doc.to_dict() if doc.exists else None
-
-# ------------------ Streamlit UI helper ------------------
+# ------------------ Streamlit UI ------------------
 def auth_ui():
-    """
-    Call this inside your Streamlit app to render a small login/signup UI.
-    It will populate st.session_state['user'] upon successful auth.
-    """
     if "user" not in st.session_state:
         st.session_state["user"] = None
 
-    st.header("Account")
+    st.title("🚀 Mentesa Login")
 
-    col1, col2 = st.columns(2)
+    if st.session_state["user"]:
+        user = st.session_state["user"]
+        st.success(f"Signed in as {user['displayName']} ({user['email']})")
+        if not user.get("emailVerified"):
+            st.info("⚠️ Email not verified. Click the link below after signup:")
+            if user.get("verificationLink"):
+                st.markdown(f"[Verify Email]({user['verificationLink']})")
+        if st.button("Sign out"):
+            st.session_state["user"] = None
+            st.experimental_rerun()
+        return  # skip login/signup UI if logged in
 
-    with col1:
-        st.subheader("Login")
-        login_email = st.text_input("Email", key="login_email")
-        login_password = st.text_input("Password", type="password", key="login_password")
+    # Tabs for Login / Signup / OAuth
+    tab = st.radio("Choose an option:", ["Login", "Sign Up", "OAuth"])
+
+    if tab == "Login":
+        email = st.text_input("Email", key="login_email")
+        password = st.text_input("Password", type="password", key="login_password")
         if st.button("Login"):
             try:
-                sess = login_user(login_email, login_password)
-                st.session_state["user"] = sess
-                st.success("Logged in.")
+                user = login_user(email, password)
+                st.session_state["user"] = user
+                st.experimental_rerun()
             except requests.HTTPError as e:
                 err = e.response.json().get("error", {}).get("message", str(e))
                 st.error(f"Login failed: {err}")
             except Exception as e:
                 st.error(f"Login error: {e}")
-
         if st.button("Forgot password?"):
-            if login_email:
+            if email:
                 try:
-                    send_password_reset(login_email)
-                    st.info("Password reset email sent (if account exists).")
+                    send_password_reset(email)
+                    st.info("Password reset email sent!")
                 except Exception as e:
-                    st.error(f"Could not send reset email: {e}")
+                    st.error(f"Reset failed: {e}")
             else:
-                st.info("Enter your email above and press 'Forgot password?'")
+                st.info("Enter email first.")
 
-    with col2:
-        st.subheader("Sign up")
-        signup_name = st.text_input("Full name", key="signup_name")
-        signup_email = st.text_input("Email", key="signup_email")
-        signup_password = st.text_input("Password", type="password", key="signup_password")
-        if st.button("Create account"):
+    elif tab == "Sign Up":
+        name = st.text_input("Full Name", key="signup_name")
+        email = st.text_input("Email", key="signup_email")
+        password = st.text_input("Password", type="password", key="signup_password")
+        if st.button("Create Account"):
             try:
-                resp = signup_user(signup_name or signup_email.split("@")[0], signup_email, signup_password)
-                st.session_state["user"] = resp
-                st.success("Account created! 🎉")
-                
-                if resp.get("verificationLink"):
-                    st.info("Click the link below to verify your email:")
-                    st.markdown(f"[Verify Email]({resp['verificationLink']})")
-                else:
-                    st.warning("Could not generate verification link.")
+                user = signup_user(email, password, name or email.split("@")[0])
+                st.session_state["user"] = user
+                st.experimental_rerun()
             except Exception as e:
                 st.error(f"Signup error: {e}")
-    
-    
-    st.markdown("---")
-    if st.session_state.get("user"):
-        user = st.session_state["user"]
-        st.write("Signed in:", {"uid": user["uid"], "emailVerified": user.get("emailVerified")})
-        if st.button("Sign out"):
-            st.session_state["user"] = None
-            st.success("Signed out.")
 
-# ------------------ Small util for gating ------------------
-def require_login(redirect_msg="Please sign in to continue."):
-    """
-    Convenience: check if user is in session_state; if not, show message and stop.
-    Use in pages that require authentication.
-    """
+    elif tab == "OAuth":
+        st.markdown("### Login with:")
+        # Google / GitHub buttons using Firebase hosted OAuth links
+        st.markdown("[Login with Google](https://your-firebase-app.web.app/__/auth/handler?providerId=google.com)")
+        st.markdown("[Login with GitHub](https://your-firebase-app.web.app/__/auth/handler?providerId=github.com)")
+
+# ------------------ Gating ------------------
+def require_login(redirect_msg="Please log in to continue"):
     if not st.session_state.get("user"):
         st.warning(redirect_msg)
         st.stop()
