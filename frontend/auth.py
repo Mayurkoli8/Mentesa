@@ -135,8 +135,8 @@ def auth_ui():
     elif tab == "OAuth":
         st.markdown("### Login with:")
         # Google / GitHub buttons using Firebase hosted OAuth links
-        st.markdown("[Login with Google](https://your-firebase-app.web.app/__/auth/handler?providerId=google.com)")
-        st.markdown("[Login with GitHub](https://your-firebase-app.web.app/__/auth/handler?providerId=github.com)")
+        st.markdown("[Login with Google](https://mentesav4.firebaseapp.com/__/auth/handler?providerId=google.com)")
+        st.markdown("[Login with GitHub](https://mentesav4.firebaseapp.com/__/auth/handler?providerId=github.com)")
 
 # ------------------ Gating ------------------
 def require_login(redirect_msg="Please log in to continue"):
