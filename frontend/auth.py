@@ -91,7 +91,7 @@ def auth_ui():
                 st.markdown(f"[Verify Email]({user['verificationLink']})")
         if st.button("Sign out"):
             st.session_state["user"] = None
-            st.experimental_rerun()
+            st.rerun()
         return  # skip login/signup UI if logged in
 
     # Tabs for Login / Signup / OAuth
@@ -104,7 +104,7 @@ def auth_ui():
             try:
                 user = login_user(email, password)
                 st.session_state["user"] = user
-                st.experimental_rerun()
+                st.rerun()
             except requests.HTTPError as e:
                 err = e.response.json().get("error", {}).get("message", str(e))
                 st.error(f"Login failed: {err}")
@@ -128,7 +128,7 @@ def auth_ui():
             try:
                 user = signup_user(email, password, name or email.split("@")[0])
                 st.session_state["user"] = user
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.error(f"Signup error: {e}")
 

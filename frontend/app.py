@@ -41,7 +41,7 @@ from auth import auth_ui, require_login
 st.set_page_config(page_title="Mentesa")
 
 # show auth UI (you can place this in a dedicated login page/tab)
-#auth_ui()
+auth_ui()
 
 # For any page or operation that must be protected:
 # user = require_login()
@@ -532,7 +532,7 @@ def bot_management_ui():
 
 # ---------------- MAIN APP ----------------
 def main():
-    auth_ui()
+
     tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots"])
 
     with tabs[0]:
