@@ -41,7 +41,7 @@ from auth import auth_ui, require_login
 st.set_page_config(page_title="Mentesa")
 
 # show auth UI (you can place this in a dedicated login page/tab)
-auth_ui()
+#auth_ui()
 
 # For any page or operation that must be protected:
 # user = require_login()

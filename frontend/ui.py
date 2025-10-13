@@ -108,8 +108,9 @@ def logo_animation():
         const ctx = canvas.getContext('2d');
 
         function resizeCanvas() {{
-          canvas.width = canvas.parentElement.offsetWidth;
+          canvas.width = Math.min(window.innerWidth * 0.9, 900); // max 900px
           canvas.height = canvas.width * 0.9;
+
         }}
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
@@ -118,7 +119,7 @@ def logo_animation():
         img.src = "data:image/png;base64,{img_base64}";
         const particles = [];
         const radius = 2;
-        const maxParticles = 500;
+        const maxParticles =1000;
         let formed = false;
         let startTime = null;
 
@@ -195,7 +196,7 @@ def logo_animation():
 
             if (elapsed < duration) {{
                 // initial slow convergence
-                const factor = 0.02;
+                const factor = -0.01;
                 p.vx = dx * factor;
                 p.vy = dy * factor;
                 p.x += p.vx;
