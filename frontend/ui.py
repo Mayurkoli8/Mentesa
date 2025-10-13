@@ -119,7 +119,7 @@ def logo_animation():
         img.src = "data:image/png;base64,{img_base64}";
         const particles = [];
         const radius = 2;
-        const maxParticles =800;
+        const maxParticles =1000;
         let formed = false;
         let startTime = null;
 
