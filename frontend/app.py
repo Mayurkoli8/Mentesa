@@ -40,14 +40,18 @@ from auth import auth_ui, require_login
 
 st.set_page_config(page_title="Mentesa")
 
-# show auth UI (you can place this in a dedicated login page/tab)
-#auth_ui()
+# --- Authentication check ---
+if "user" not in st.session_state or not st.session_state["user"]:
+    auth_ui()
+    st.stop()
 
+user = st.session_state["user"]
 # For any page or operation that must be protected:
 # user = require_login()
 # uid = user['uid']
 # now query Firestore for bots owned by uid, e.g.:
 # db.collection("bots").where("owner_uid", "==", uid).stream()
+
 
 
 
@@ -60,7 +64,7 @@ apply_custom_styles()
 
 
 # # Show header
-# show_header()
+#show_header()
 
 # ---------------- BOT CREATION ----------------
 from utils.llm import generate_bot_config_gemini
@@ -533,7 +537,7 @@ def bot_management_ui():
 # ---------------- MAIN APP ----------------
 def main():
 
-    tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots"])
+    tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots", "👤 Account"])
 
     with tabs[0]:
         create_and_save_bot()
@@ -541,6 +545,11 @@ def main():
         bot_management_ui()
     with tabs[2]:
         chat_interface()
+    with tabs[3]:
+        st.success(f"👋 Welcome, 👤{user.get('displayName', user.get('email', 'User'))}")
+        if st.button("🚪 Sign Out"):
+            st.session_state["user"] = None
+            st.rerun()
 
 if __name__ == "__main__":
     main()
