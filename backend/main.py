@@ -91,6 +91,7 @@ app.add_middleware(
 # Models
 # -------------------------------------------------
 class BotCreate(BaseModel):
+    owner_email: Optional[str] = None 
     name: Optional[str] = None
     personality: Optional[str] = ""
     prompt: Optional[str] = None
@@ -138,7 +139,10 @@ def find_bot_by_api_key(key: str) -> Optional[Dict[str, Any]]:
 
 
 @app.get("/bots", response_model=List[BotPublic])
-def list_bots():
+def list_bots(owner_email: Optional[str] = None):
+    if owner_email:
+        user_bots = [b for b in bots if b.get("owner_email") == owner_email]
+        return [sanitize_public(b) for b in user_bots]
     return [sanitize_public(b) for b in bots]
 
 @app.get("/bots/{bot_id}", response_model=BotPublic)
@@ -256,6 +260,7 @@ def create_bot(bot: BotCreate):
         "api_key": generate_api_key(),
         "scraped_text": site_text,
         "file_data": file_data,
+        "owner_email": bot.owner_email or "unknown",  
     }
 
     # --- Save bot ---
