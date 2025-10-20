@@ -40,6 +40,30 @@ from auth import auth_ui, require_login
 
 st.set_page_config(page_title="Mentesa")
 
+if "user" not in st.session_state:
+    st.session_state["user"] = None
+
+params = st.query_params
+if "idToken" in params:
+    id_token = params["idToken"]
+    verify_resp = requests.post(
+        f"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={os.environ.get('FIREBASE_API_KEY')}",
+        json={"idToken": id_token},
+        timeout=10,
+    )
+    if verify_resp.ok:
+        user_info = verify_resp.json()["users"][0]
+        st.session_state["user"] = {
+            "uid": user_info["localId"],
+            "email": user_info["email"],
+            "displayName": user_info.get("displayName", user_info["email"].split("@")[0]),
+            "emailVerified": user_info.get("emailVerified", False)
+        }
+        st.success(f"✅ Signed in as {st.session_state['user']['displayName']}")
+        # Clean up query params
+        st.query_params.clear()
+        st.rerun()
+
 # --- Authentication check ---
 if "user" not in st.session_state or not st.session_state["user"]:
     auth_ui()
