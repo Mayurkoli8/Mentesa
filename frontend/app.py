@@ -132,12 +132,21 @@ def create_and_save_bot():
                     st.error(f"Failed to read uploaded file '{f.name}': {e}")
                     return
 
+        # inside create_and_save_bot(), before calling backend:
+        user = st.session_state.get("user") or {}
+        owner_uid = user.get("uid")
+        owner_email = user.get("email")
+        
         payload = {
             "name": bot_name.strip(),
             "prompt": prompt.strip(),
             "config": {"urls": [url.strip()]} if url.strip() else {},
-            "files": files_payload
+            "files": files_payload,
+            # --- owner info for backend/firestore
+            "owner_uid": owner_uid,
+            "owner_email": owner_email,
         }
+        
 
         with st.spinner("Generating bot..."):
             try:
@@ -175,29 +184,42 @@ def chat_interface():
     st.header("💬 Chat with Your Bot")
     st.markdown("---")
 
-    # --- Load bots from Firebase ---
-    bots_ref = db.collection("bots").stream()
+    # Ensure we have user uid
+    user = st.session_state.get("user") or {}
+    uid = user.get("uid")
+    if not uid:
+        st.error("User not found. Please sign in.")
+        return
+
+    # --- Load bots from Firebase (only current user's bots) ---
     bots = []
-    for doc in bots_ref:
-        data = doc.to_dict()
-        data["id"] = doc.id
-        bots.append(data)
+    try:
+        bots_ref = db.collection("bots").where("owner_uid", "==", uid).stream()
+        for doc in bots_ref:
+            data = doc.to_dict() or {}
+            data["id"] = doc.id
+            bots.append(data)
+    except Exception as e:
+        st.error(f"Failed to load bots: {e}")
+        return
 
     if not bots:
-        st.info("No bots available — create one above.")
+        st.info("You don't have any bots yet — create one first.")
         return
 
     # --- Select bot ---
-    bot_items = [(f"{b['name']} ({b['id'][:6]})", b['id']) for b in bots]
-
-    selected_label, selected_bot_id = st.selectbox(
+    selected_bot_info = st.selectbox(
         "Choose a bot",
-        options=bot_items,
-        format_func=lambda x: x[0],
+        options=bots,
+        format_func=lambda b: f"{b.get('name','(unknown)')} ({b.get('id','')[:6]})",
         key="chat_selectbox"
     )
 
-    selected_bot_info = next(b for b in bots if b['id'] == selected_bot_id)
+    if not selected_bot_info:
+        st.info("No bot selected.")
+        return
+
+    selected_bot_id = selected_bot_info["id"]
 
     st.markdown("---")
 
@@ -343,28 +365,45 @@ def chat_interface():
 def bot_management_ui():
     st.subheader("🛠️ Manage Your Bots")
 
-    # Load bots from Firebase
+    # Ensure we have user uid
+    user = st.session_state.get("user") or {}
+    uid = user.get("uid")
+    if not uid:
+        st.error("User not found. Please sign in.")
+        return
+
+    # Load bots from Firebase (only this user's bots)
     bots = []
-    for doc in db.collection("bots").stream():
-        bot = doc.to_dict()
-        bot["id"] = doc.id  # add the document ID
-        bots.append(bot)
+    try:
+        for doc in db.collection("bots").where("owner_uid", "==", uid).stream():
+            bot = doc.to_dict() or {}
+            bot["id"] = doc.id  # add the document ID
+            bots.append(bot)
+    except Exception as e:
+        st.error(f"Failed to load bots: {e}")
+        return
 
     if not bots:
         st.info("No bots available — create one first.")
         return
 
     # --- Select bot ---
-    bot_options = {f"{b['name']} ({b['id'][:6]})": b['id'] for b in bots}
-    selected_label = st.selectbox("Choose a bot", list(bot_options.keys()), key="manage_select")
-    selected_bot_id = bot_options[selected_label]
-    selected_bot_info = next(b for b in bots if b['id'] == selected_bot_id)
+    selected_bot_info = st.selectbox(
+        "Choose a bot",
+        options=bots,
+        format_func=lambda b: f"{b.get('name','(unknown)')} ({b.get('id','')[:6]})",
+        key="manage_select"
+    )
+    if not selected_bot_info:
+        st.info("No bot selected.")
+        return
+    selected_bot_id = selected_bot_info["id"]
 
     # --- Bot management columns ---
     col1, col2, col3, col4 = st.columns([2, 3, 1, 1])
 
     # Rename
-    new_name = col1.text_input("Name", value=selected_bot_info['name'], key=f"name_{selected_bot_id}")
+    new_name = col1.text_input("Name", value=selected_bot_info.get('name',''), key=f"name_{selected_bot_id}")
     if col1.button("✏️ Rename", key=f"rename_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).update({"name": new_name})
         st.success("Renamed!")
@@ -557,4 +596,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
