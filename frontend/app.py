@@ -1,3 +1,4 @@
+# app.py
 import streamlit as st
 import uuid
 import json
@@ -9,13 +10,10 @@ import google.generativeai
 # Add root dir so utils/ can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-
 from ui import apply_custom_styles, show_header, logo_animation
-
 
 from utils.firebase_config import db
 from firebase_admin import firestore as fa_firestore
-
 
 from streamlit.components.v1 import html as components_html
 from utils.llm import generate_bot_config_gemini, chat_with_gemini
@@ -43,7 +41,6 @@ st.set_page_config(page_title="Mentesa")
 if "user" not in st.session_state:
     st.session_state["user"] = None
 
-
 # --- Authentication check ---
 if "user" not in st.session_state or not st.session_state["user"]:
     auth_ui()
@@ -56,19 +53,69 @@ user = st.session_state["user"]
 # now query Firestore for bots owned by uid, e.g.:
 # db.collection("bots").where("owner_uid", "==", uid).stream()
 
-
-
-
 # Logo Mentesa animation
 logo_animation()
-
 
 # Apply styles
 apply_custom_styles()
 
-
 # # Show header
 #show_header()
+
+# ---------------- utility: load bots for current user ----------------
+def load_user_bots():
+    """
+    Return list of bot dicts owned by the current user.
+    This will attempt to query by owner_uid and owner_email and deduplicate results.
+    Always returns a list (possibly empty).
+    """
+    user = st.session_state.get("user") or {}
+    uid = user.get("uid")
+    email = user.get("email")
+    bots = {}
+    try:
+        # Try owner_uid first (fast and strict)
+        if uid:
+            try:
+                for doc in db.collection("bots").where("owner_uid", "==", uid).stream():
+                    d = doc.to_dict() or {}
+                    d["id"] = doc.id
+                    bots[d["id"]] = d
+            except Exception:
+                # don't fail hard — continue to owner_email fallback
+                pass
+
+        # Then try owner_email (covers records created earlier or backend that stored only email)
+        if email:
+            try:
+                for doc in db.collection("bots").where("owner_email", "==", email).stream():
+                    d = doc.to_dict() or {}
+                    d["id"] = doc.id
+                    bots[d["id"]] = d
+            except Exception:
+                # fallback to filtering client-side below
+                pass
+
+        # If both queries yielded nothing, as a robust fallback we fetch a small set and filter locally.
+        if not bots:
+            try:
+                # only fetch a limited set to avoid scanning entire DB; if your dataset is small you can remove limit
+                for doc in db.collection("bots").stream():
+                    d = doc.to_dict() or {}
+                    owner_uid = d.get("owner_uid")
+                    owner_email = d.get("owner_email")
+                    if (uid and owner_uid == uid) or (email and owner_email == email):
+                        d["id"] = doc.id
+                        bots[d["id"]] = d
+            except Exception:
+                # last resort: return empty list
+                pass
+    except Exception as e:
+        st.error(f"Failed to load your bots: {e}")
+        return []
+
+    # return deduplicated bots as list
+    return list(bots.values())
 
 # ---------------- BOT CREATION ----------------
 from utils.llm import generate_bot_config_gemini
@@ -96,7 +143,7 @@ def create_and_save_bot():
 
         # Prepare files payload if files were uploaded
         files_payload = []
-        if uploaded_files:  # <-- use uploaded_files, not uploaded_file
+        if uploaded_files:
             import io
             for f in uploaded_files:
                 try:
@@ -132,7 +179,7 @@ def create_and_save_bot():
                     st.error(f"Failed to read uploaded file '{f.name}': {e}")
                     return
 
-        # inside create_and_save_bot(), before calling backend:
+        # owner info
         user = st.session_state.get("user") or {}
         owner_uid = user.get("uid")
         owner_email = user.get("email")
@@ -147,7 +194,6 @@ def create_and_save_bot():
             "owner_email": owner_email,
         }
         
-
         with st.spinner("Generating bot..."):
             try:
                 response = requests.post(f"{BACKEND}/bots", json=payload, timeout=120)
@@ -179,28 +225,21 @@ def normalize_history(raw_history):
                 normalized.append({"role": "bot", "content": turn["bot"]})
     return normalized
 
-# ---------------- CHAT INTERFACE ----------------
 def chat_interface():
     st.header("💬 Chat with Your Bot")
     st.markdown("---")
 
-    # Ensure we have user uid
+    # Ensure we have user uid/email
     user = st.session_state.get("user") or {}
     uid = user.get("uid")
-    if not uid:
+    email = user.get("email")
+    if not (uid or email):
         st.error("User not found. Please sign in.")
         return
 
     # --- Load bots from Firebase (only current user's bots) ---
-    bots = []
     try:
-        user = st.session_state.get("user") or {}
-        uid = user.get("uid")
-        bots_ref = db.collection("bots").where("owner_uid", "==", uid).stream()
-        for doc in bots_ref:
-            data = doc.to_dict() or {}
-            data["id"] = doc.id
-            bots.append(data)
+        bots = load_user_bots()
     except Exception as e:
         st.error(f"Failed to load bots: {e}")
         return
@@ -367,22 +406,17 @@ def chat_interface():
 def bot_management_ui():
     st.subheader("🛠️ Manage Your Bots")
 
-    # Ensure we have user uid
+    # Ensure we have user uid/email
     user = st.session_state.get("user") or {}
     uid = user.get("uid")
-    if not uid:
+    email = user.get("email")
+    if not (uid or email):
         st.error("User not found. Please sign in.")
         return
 
     # Load bots from Firebase (only this user's bots)
-    bots = []
     try:
-        user = st.session_state.get("user") or {}
-        uid = user.get("uid")
-        for doc in db.collection("bots").where("owner_uid", "==", uid).stream():
-            bot = doc.to_dict() or {}
-            bot["id"] = doc.id  # add the document ID
-            bots.append(bot)
+        bots = load_user_bots()
     except Exception as e:
         st.error(f"Failed to load bots: {e}")
         return
