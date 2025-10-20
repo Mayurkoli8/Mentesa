@@ -17,3 +17,5 @@ PyPDF2
 datetime
 google-auth
 pyrebase4
+streamlit-cookies-manager
+

@@ -7,6 +7,14 @@ import os
 import requests
 import google.generativeai
 
+from streamlit_cookies_manager import EncryptedCookieManager
+
+# --- COOKIE MANAGER ---
+cookies = EncryptedCookieManager(prefix="mentesa_", password="super_secret_key")
+if not cookies.ready():
+    st.stop()
+
+
 # Add root dir so utils/ can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -39,7 +47,14 @@ from auth import auth_ui, require_login
 st.set_page_config(page_title="Mentesa")
 
 if "user" not in st.session_state:
-    st.session_state["user"] = None
+    if cookies.get("user_email") and cookies.get("user_uid"):
+        st.session_state["user"] = {
+            "email": cookies.get("user_email"),
+            "uid": cookies.get("user_uid")
+        }
+    else:
+        st.session_state["user"] = None
+        
 
 # --- Authentication check ---
 if "user" not in st.session_state or not st.session_state["user"]:
@@ -630,7 +645,11 @@ def main():
         st.success(f"👋 Welcome, 👤{user.get('displayName', user.get('email', 'User'))}")
         if st.button("🚪 Sign Out"):
             st.session_state["user"] = None
+            cookies.delete("user_email")
+            cookies.delete("user_uid")
+            cookies.save()
             st.rerun()
+
 
 if __name__ == "__main__":
     main()

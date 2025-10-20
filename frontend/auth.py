@@ -199,7 +199,12 @@ def auth_ui():
 
     # session keys
     if "user" not in st.session_state:
-        st.session_state["user"] = None
+        cookies["user_email"] = email
+        cookies["user_uid"] = uid
+        cookies.save()
+        st.session_state["user"] = {"email": email, "uid": uid}
+        st.rerun()
+
     if "pending_unverified" not in st.session_state:
         st.session_state["pending_unverified"] = None
 
