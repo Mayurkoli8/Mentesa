@@ -255,7 +255,7 @@ def auth_ui():
 
     # --- Main card for Login / Signup (no OAuth) ---
     # st.markdown('<div class="auth-card">', unsafe_allow_html=True)
-    st.markdown('<div class="auth-title">🔐 Welcome to Mentesa</div>', unsafe_allow_html=True)
+    # st.markdown('<div class="auth-title">🔐 Welcome to Mentesa</div>', unsafe_allow_html=True)
     st.markdown('<div class="auth-sub">Create an account or sign in with your email to continue.</div>', unsafe_allow_html=True)
 
     # Use an explicit label for accessibility (Streamlit warns when label is empty)
