@@ -194,6 +194,8 @@ def chat_interface():
     # --- Load bots from Firebase (only current user's bots) ---
     bots = []
     try:
+        user = st.session_state.get("user") or {}
+        uid = user.get("uid")
         bots_ref = db.collection("bots").where("owner_uid", "==", uid).stream()
         for doc in bots_ref:
             data = doc.to_dict() or {}
@@ -375,6 +377,8 @@ def bot_management_ui():
     # Load bots from Firebase (only this user's bots)
     bots = []
     try:
+        user = st.session_state.get("user") or {}
+        uid = user.get("uid")
         for doc in db.collection("bots").where("owner_uid", "==", uid).stream():
             bot = doc.to_dict() or {}
             bot["id"] = doc.id  # add the document ID
