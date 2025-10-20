@@ -8,7 +8,6 @@ import streamlit as st
 import firebase_admin
 from firebase_admin import auth as admin_auth, firestore
 from ui import logo_animation
-from auth_oauth import oauth_buttons
 
 logging.basicConfig(level=logging.INFO)
 
@@ -57,7 +56,7 @@ def rest_send_verification_email_with_token(id_token: str):
     return _rest_post("accounts:sendOobCode", {"requestType": "VERIFY_EMAIL", "idToken": id_token})
 
 # ---------------- Auth operations ----------------
-def create_user_profile_if_missing(uid: str, email: str, display_name: str = None, oauth=False):
+def create_user_profile_if_missing(uid: str, email: str, display_name: str = None):
     doc = db.collection("users").document(uid)
     if not doc.get().exists:
         doc.set({
@@ -65,10 +64,13 @@ def create_user_profile_if_missing(uid: str, email: str, display_name: str = Non
             "email": email,
             "createdAt": firestore.SERVER_TIMESTAMP,
             "roles": {"user": True},
-            "oauth": oauth
         })
 
 def signup_user(email: str, password: str, display_name: str):
+    """
+    Create a Firebase Auth user via Admin SDK, create Firestore profile,
+    trigger verification email via REST (if possible). Do NOT auto-login.
+    """
     try:
         # If user exists, raise
         try:
@@ -79,9 +81,10 @@ def signup_user(email: str, password: str, display_name: str):
 
         user = admin_auth.create_user(email=email, password=password, display_name=display_name)
         uid = user.uid
-        create_user_profile_if_missing(uid, email, display_name, oauth=False)
 
-        # Try REST sign-in to obtain idToken for sending verification email
+        create_user_profile_if_missing(uid, email, display_name)
+
+        # Try REST sign-in to get idToken and send verification email
         try:
             signin = rest_sign_in(email, password)
             id_token = signin.get("idToken")
@@ -93,9 +96,9 @@ def signup_user(email: str, password: str, display_name: str):
             else:
                 logging.warning("No idToken after signup; falling back to admin link.")
         except Exception as e:
-            logging.warning("REST sign-in after signup failed: %s", e)
+            logging.warning("REST sign-in after signup failed (verification may still be possible via admin link): %s", e)
 
-        # Admin fallback verification link for dev / debugging
+        # Admin fallback verification link (useful for dev)
         try:
             verification_link = admin_auth.generate_email_verification_link(email)
         except Exception:
@@ -110,6 +113,10 @@ def signup_user(email: str, password: str, display_name: str):
         raise Exception(f"Signup failed: {e}")
 
 def login_user(email: str, password: str):
+    """
+    Sign in via REST. If email not verified, re-send verification and return 'unverified' status.
+    If verified, return session object with uid, email, displayName.
+    """
     try:
         resp = rest_sign_in(email, password)
     except requests.HTTPError as e:
@@ -123,6 +130,7 @@ def login_user(email: str, password: str):
     id_token = resp.get("idToken")
     uid = resp.get("localId")
 
+    # Get authoritative user info from Admin SDK
     try:
         user_record = admin_auth.get_user(uid)
         email_verified = bool(user_record.email_verified)
@@ -133,6 +141,7 @@ def login_user(email: str, password: str):
         display_name = email.split("@")[0]
 
     if not email_verified:
+        # re-send verification via REST if possible
         try:
             if id_token:
                 rest_send_verification_email_with_token(id_token)
@@ -146,8 +155,12 @@ def login_user(email: str, password: str):
 def send_password_reset(email: str):
     return rest_send_password_reset(email)
 
-# ---------------- Streamlit UI ----------------
+# ------------------ STREAMLIT UI ------------------
 def auth_ui():
+    """
+    Simple email/password auth UI. No OAuth.
+    Blocks the rest of the app until a verified user is assigned to st.session_state['user'].
+    """
     logo_animation()
 
     st.markdown("""
@@ -164,7 +177,7 @@ def auth_ui():
     if "pending_unverified" not in st.session_state:
         st.session_state["pending_unverified"] = None
 
-    # If already signed-in (verified), show and allow sign-out
+    # If already signed-in (verified)
     if st.session_state.get("user"):
         u = st.session_state["user"]
         st.success(f"✅ Signed in as **{u.get('displayName')}** ({u.get('email')})")
@@ -173,7 +186,7 @@ def auth_ui():
             st.rerun()
         return
 
-    # Pending unverified user flow
+    # If there is a pending unverified login, show that block and let user resend / check
     pending = st.session_state.get("pending_unverified")
     if pending:
         st.markdown('<div class="auth-card">', unsafe_allow_html=True)
@@ -211,15 +224,16 @@ def auth_ui():
                         st.warning("Email still not verified. Make sure you clicked the link in your inbox.")
                 except Exception as e:
                     st.error(f"Could not check verification status: {e}")
+
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    # Show Login / Sign up / OAuth UI
+    # Normal Login / Signup UI (no OAuth)
     st.markdown('<div class="auth-card">', unsafe_allow_html=True)
     st.markdown('<div class="auth-title">🔐 Welcome to Mentesa</div>', unsafe_allow_html=True)
     st.markdown('<div class="auth-small">Create an account or sign in to continue.</div>', unsafe_allow_html=True)
 
-    tab = st.radio("", ["Login", "Sign Up", "OAuth"], horizontal=True)
+    tab = st.radio("Choose action", ["Login", "Sign Up"], horizontal=True)
 
     if tab == "Login":
         email = st.text_input("📧 Email", key="login_email")
@@ -279,14 +293,9 @@ def auth_ui():
                 except Exception as e:
                     st.error(f"Signup error: {e}")
 
-    elif tab == "OAuth":
-        oauth_buttons()
-        st.markdown("---")
-        st.write("If you prefer backend-based OAuth (recommended), your backend will redirect back to the app with `?idToken=...` and you'll be signed in automatically.")
-
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- Protected helper ----------------
+# Protected helper
 def require_login(msg="Please log in to continue"):
     if not st.session_state.get("user"):
         st.warning(msg)
