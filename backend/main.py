@@ -5,13 +5,17 @@ import uuid
 import secrets
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+import firebase_admin
 
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 import google.generativeai as genai
 from datetime import datetime
+
+import io
+import docx
 
 from utils.scraper import scrape_website
 
@@ -22,10 +26,17 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.firebase_config import db
 
+# for cookies
+from fastapi import Response, Cookie
+from datetime import timedelta
+import requests as _requests  # to avoid name clash with the frontend requests
+from firebase_admin import auth as admin_auth
+
+
 # -------------------------------------------------
 # Init
 # -------------------------------------------------
-app = FastAPI(title="Mentesa API (v1 branch) — Bots & Embeds")
+app = FastAPI(title="Mentesa V8")
 
 # Serve static folder (for embed.js)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -87,11 +98,13 @@ app.add_middleware(
 # Models
 # -------------------------------------------------
 class BotCreate(BaseModel):
+    owner_email: Optional[str] = None 
     name: Optional[str] = None
     personality: Optional[str] = ""
     prompt: Optional[str] = None
     url: Optional[str] = None
     config: Dict[str, Any] = Field(default_factory=dict)
+    files: Optional[List[Dict[str, str]]] = Field(default_factory=list)
 
 class BotPublic(BaseModel):
     id: str
@@ -126,11 +139,68 @@ def find_bot_by_id(bid: str) -> Optional[Dict[str, Any]]:
 def find_bot_by_api_key(key: str) -> Optional[Dict[str, Any]]:
     return next((b for b in bots if b.get("api_key") == key), None)
 
+# Firebase REST endpoint (for password sign-in)
+FIREBASE_REST_BASE = "https://identitytoolkit.googleapis.com/v1"
+FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY")  # ensure this is in your env or .env
+
+def _rest_post(path: str, payload: dict, timeout: int = 10):
+    if not FIREBASE_API_KEY:
+        raise RuntimeError("FIREBASE_API_KEY is not set in backend env")
+    url = f"{FIREBASE_REST_BASE}/{path}?key={FIREBASE_API_KEY}"
+    r = _requests.post(url, json=payload, timeout=timeout)
+    r.raise_for_status()
+    return r.json()
+
+SESSION_TTL_DAYS = int(os.getenv("SESSION_TTL_DAYS", "30"))
+
+def create_session(uid: str, email: str, display_name: str) -> str:
+    sid = str(uuid.uuid4())
+    expires = (datetime.utcnow() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
+    doc = {
+        "uid": uid,
+        "email": email,
+        "displayName": display_name,
+        "created_at": datetime.utcnow().isoformat(),
+        "expires_at": expires,
+    }
+    db.collection("sessions").document(sid).set(doc)
+    return sid
+
+def get_session(sid: str) -> Optional[Dict[str, Any]]:
+    if not sid:
+        return None
+    doc = db.collection("sessions").document(sid).get()
+    if not doc.exists:
+        return None
+    data = doc.to_dict() or {}
+    # check expiry
+    exp = data.get("expires_at")
+    if exp:
+        try:
+            if datetime.fromisoformat(exp) < datetime.utcnow():
+                # expired -> delete
+                db.collection("sessions").document(sid).delete()
+                return None
+        except Exception:
+            pass
+    return data
+
+def delete_session(sid: str):
+    if not sid:
+        return
+    db.collection("sessions").document(sid).delete()
+
 # -------------------------------------------------
 # Routes: Bots
 # -------------------------------------------------
+
+
+
 @app.get("/bots", response_model=List[BotPublic])
-def list_bots():
+def list_bots(owner_email: Optional[str] = None):
+    if owner_email:
+        user_bots = [b for b in bots if b.get("owner_email") == owner_email]
+        return [sanitize_public(b) for b in user_bots]
     return [sanitize_public(b) for b in bots]
 
 @app.get("/bots/{bot_id}", response_model=BotPublic)
@@ -143,13 +213,18 @@ def get_bot(bot_id: str):
 
 @app.post("/bots", response_model=Dict[str, Any])
 def create_bot(bot: BotCreate):
+    import re, json, uuid
+    from datetime import datetime
+
+    # Get the first URL from frontend config (if any)
+    frontend_urls = getattr(bot, "config", {}).get("urls", [])
     site_text = ""
-    if bot.url:
+    if frontend_urls:
         try:
-            site_text = scrape_website(bot.url)
+            site_text = scrape_website(frontend_urls[0])
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to scrape site: {e}")
-
+    
     # ----------------------
     # Call Gemini to build bot config
     # ----------------------
@@ -191,38 +266,66 @@ def create_bot(bot: BotCreate):
         }}
         """
 
-    import re, json
+    # --- Generate bot config from Gemini ---
     try:
         response = model.generate_content(prompt_text)
         raw = response.text.strip()
 
-        # ✅ Extract JSON only
+        # Extract JSON only
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         if match:
             cfg = json.loads(match.group(0))
         else:
             raise ValueError("No JSON found in Gemini response")
 
-    except Exception as e:
+    except Exception:
         cfg = {
             "name": bot.name or "Unnamed Bot",
             "personality": "Not mentioned on the website",
             "settings": {}
         }
 
+    # --- Sanitize incoming files ---
+    incoming_files = getattr(bot, "files", []) or []
+    file_data = []
+    for f in incoming_files:
+        if isinstance(f, dict):
+            fname = f.get("name") or "file"
+            ftext = f.get("text") or ""
+            ftext = ftext[:15000]  # truncate to 15k chars
+            file_data.append({"id": str(uuid.uuid4()), "name": fname, "text": ftext})
+
+    # --- Merge frontend URL with Gemini config safely ---
+    config_data = cfg.get("settings", {})
+    if not isinstance(config_data, dict):
+        config_data = {}
+
+    # Preserve existing URLs from Gemini + add frontend URL
+    urls_list = config_data.get("urls", [])
+    frontend_url = getattr(bot, "config", {}).get("urls", [])
+    for u in frontend_url:
+        if u and u not in urls_list:
+            urls_list.append(u)
+    config_data["urls"] = urls_list
+
+    # --- Create new bot object ---
     new_bot = {
         "id": str(uuid.uuid4()),
         "name": cfg.get("name", bot.name or "Unnamed Bot"),
         "personality": cfg.get("personality", "Not mentioned on the website"),
-        "config": cfg.get("settings", bot.config or {}),
+        "config": config_data,
         "created_at": datetime.now().isoformat(),
         "api_key": generate_api_key(),
         "scraped_text": site_text,
-        "url": bot.url  # ✅ store URL too
+        "file_data": file_data,
+        "owner_email": bot.owner_email or "unknown",  
     }
 
+    # --- Save bot ---
     bots.append(new_bot)
     save_bots(bots)
+
+    # --- Return sanitized response ---
     return {
         "bot": sanitize_public(new_bot),
         "api_key": new_bot["api_key"],
@@ -238,6 +341,44 @@ def delete_bot(bot_id: str):
         raise HTTPException(status_code=404, detail="Bot not found")
     save_bots(bots)
     return {"message": "Bot deleted"}
+
+
+@app.post("/bots/{bot_id}/upload_file")
+async def upload_file(bot_id: str, file: UploadFile = File(...)):
+    content = await file.read()
+    text = ""
+
+    # Extract text depending on file type
+    if file.filename.endswith(".pdf"):
+        reader = PdfReader(io.BytesIO(content))
+        for page in reader.pages:
+            if page.extract_text():
+                text += page.extract_text()
+
+    elif file.filename.endswith(".docx"):
+        doc = docx.Document(io.BytesIO(content))
+        for para in doc.paragraphs:
+            text += para.text + "\n"
+
+    elif file.filename.endswith(".txt"):
+        text = content.decode("utf-8")
+
+    else:
+        raise HTTPException(400, "Unsupported file type. Use PDF, DOCX, or TXT.")
+
+    # Reference the bot document in Firestore
+    bot_ref = db.collection("bots").document(bot_id)
+    bot_snapshot = bot_ref.get()
+    if not bot_snapshot.exists:
+        raise HTTPException(404, "Bot not found")
+
+    # Append to file_data array in Firestore
+    bot_ref.update({
+        "file_data": firestore.ArrayUnion([{"name": file.filename, "text": text}])
+    })
+
+    return {"message": f"{file.filename} uploaded successfully", "text_length": len(text)}
+
 
 # -------------------------------------------------
 # Routes: API key management
@@ -271,36 +412,51 @@ def chat(req: ChatRequest,
          authorization: Optional[str] = Header(default=None), 
          x_api_key: Optional[str] = Header(default=None)):
 
+    # 1️⃣ Get API key
     api_key = None
-
-    # 1. Check Authorization: Bearer
     if authorization and authorization.lower().startswith("bearer "):
         api_key = authorization.split(" ", 1)[1].strip()
-    # 2. Check x-api-key header
     elif x_api_key:
         api_key = x_api_key.strip()
-    # 3. Fallback to bot_id
     elif req.bot_id:
         api_key = req.bot_id
     else:
         raise HTTPException(status_code=400, detail="Provide Authorization, x-api-key, or bot_id")
 
-    # 🔑 Find bot
+    # 2️⃣ Find bot
     bot = find_bot_by_api_key(api_key) or find_bot_by_id(api_key)
     if not bot:
         raise HTTPException(status_code=401, detail="Invalid API key or bot_id")
 
-    # ------------------------------
-    # ✅ Use GEMINI_API_KEY here
-    # ------------------------------
+    # 3️⃣ Configure Gemini
     genai.configure(api_key=GEMINI_API_KEY)
 
-    # Build prompt
-    name = bot["name"]
+    # 4️⃣ Gather all context
+    name = bot.get("name", "Bot")
     personality = bot.get("personality", "")
-    scraped=bot.get("scraped_text","")
-    prompt = f"You are '{name}'. Personality: {personality}\n Here is information from the website (if available):{scraped}, Only answer based on the website content. User: {req.message}"
+    scraped_text = bot.get("scraped_text", "")
 
+    # Include uploaded files
+    file_texts = []
+    bot_doc = db.collection("bots").document(bot["id"]).get()
+    if bot_doc.exists:
+        data = bot_doc.to_dict()
+        for f in data.get("file_data", []):
+            text = f.get("text", "")
+            if text.strip() and text != "-":
+                file_texts.append(text)
+
+    # Combine everything for RAG
+    rag_context = "\n".join([scraped_text] + file_texts)
+
+    # 5️⃣ Build prompt
+    prompt = (
+        f"You are '{name}'. Personality: {personality}\n"
+        f"Here is information from the website and uploaded files (if available):\n{rag_context}\n"
+        f"Only answer based on this content. User: {req.message}"
+    )
+
+    # 6️⃣ Generate response
     try:
         model = genai.GenerativeModel("gemini-2.5-pro")
         response = model.generate_content(prompt)
@@ -318,3 +474,66 @@ def chat(req: ChatRequest,
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/auth/login")
+def auth_login(payload: Dict[str, str]):
+    """
+    Body: { "email": "...", "password": "..." }
+    Returns: { "session_id": "...", "user": {...} }
+    """
+    email = payload.get("email")
+    password = payload.get("password")
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="email and password required")
+
+    # 1) REST sign-in for password
+    try:
+        resp = _rest_post("accounts:signInWithPassword", {"email": email, "password": password, "returnSecureToken": True})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Sign-in failed: {e}")
+
+    uid = resp.get("localId")
+    if not uid:
+        raise HTTPException(status_code=400, detail="Sign-in did not return user id")
+
+    # 2) Get user record via Admin SDK, ensure email verified
+    try:
+        ur = admin_auth.get_user(uid)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not fetch user record: {e}")
+
+    if not getattr(ur, "email_verified", False):
+        raise HTTPException(status_code=403, detail="Email not verified")
+
+    # 3) Create session & return session id
+    sid = create_session(uid, email, ur.display_name or email.split("@")[0])
+    return {"session_id": sid, "user": {"uid": uid, "email": email, "displayName": ur.display_name}}
+
+@app.post("/auth/logout")
+def auth_logout(payload: Dict[str, str] = None):
+    """
+    Body optionally: { "session_id": "..." }
+    Deletes session in Firestore.
+    """
+    sid = None
+    if payload:
+        sid = payload.get("session_id")
+    # also accept session id via header? keep simple for now
+    if not sid:
+        raise HTTPException(status_code=400, detail="session_id required")
+    delete_session(sid)
+    return {"ok": True}
+
+@app.get("/auth/session")
+def auth_get_session(session_id: Optional[str] = None):
+    """
+    Query current session by session_id query param or ?session_id=...
+    """
+    # Accept both header and query param if you want; simple: session_id query param or header
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id required")
+    s = get_session(session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+    # return user data
+    return {"user": {"uid": s.get("uid"), "email": s.get("email"), "displayName": s.get("displayName")}}

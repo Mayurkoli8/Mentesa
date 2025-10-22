@@ -11,3 +11,11 @@ python-dotenv
 firebase-admin
 beautifulsoup4
 readability-lxml
+python-docx
+python-multipart
+PyPDF2
+datetime
+google-auth
+pyrebase4
+streamlit-cookies-manager
+
