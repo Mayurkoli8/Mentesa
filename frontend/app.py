@@ -651,28 +651,27 @@ def main():
         """) 
         st.markdown("---")
         st.subheader("🌐 More About Us")    
-        if st.button("🚀 Team Mentesa"):
-            st.markdown(
-                """
-                <a href="https://developer.mentesa.live/" target="_blank">
-                    <button style="
-                        background-color: #4CAF50;
-                        color: white;
-                        border: none;
-                        padding: 10px 18px;
-                        text-align: center;
-                        text-decoration: none;
-                        display: inline-block;
-                        font-size: 16px;
-                        border-radius: 8px;
-                        cursor: pointer;
-                    ">
-                        🚀 Team Mentesa
-                    </button>
-                </a>
-                """,
-                unsafe_allow_html=True
-            )
+        st.markdown(
+            """
+            <a href="https://developer.mentesa.live/" target="_blank">
+                <button style="
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    padding: 10px 18px;
+                    text-align: center;
+                    text-decoration: none;
+                    display: inline-block;
+                    font-size: 16px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                ">
+                    🚀 Team Mentesa
+                </button>
+            </a>
+            """,
+            unsafe_allow_html=True
+        )
             
 if __name__ == "__main__":
     main()
