@@ -9,14 +9,19 @@ import firebase_admin
 from firebase_admin import auth as admin_auth, firestore
 from ui import logo_animation
 
-hide_header="""
+st.markdown(
+    """
     <style>
+    [data-testid="stHeader"] {display: none;}
+    [data-testid="stToolbar"] {display: none;}
     footer {visibility: hidden;}
     #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
     </style>
-"""
-st.markdown(hide_header, unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True
+)
+
+
 
 
 from cookies import ensure_ready
