@@ -655,9 +655,9 @@ def main():
             """
             <a href="https://developer.mentesa.live/" target="_blank">
                 <button style="
-                    background-color: #4CAF50;
+                    background-color: transparent;
                     color: white;
-                    border: none;
+                    border: 1px;
                     padding: 10px 18px;
                     text-align: center;
                     text-decoration: none;
