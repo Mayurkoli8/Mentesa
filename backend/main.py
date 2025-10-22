@@ -30,6 +30,7 @@ from utils.firebase_config import db
 from fastapi import Response, Cookie
 from datetime import timedelta
 import requests as _requests  # to avoid name clash with the frontend requests
+from firebase_admin import auth as admin_auth
 
 
 # -------------------------------------------------
@@ -497,7 +498,7 @@ def auth_login(payload: Dict[str, str]):
 
     # 2) Get user record via Admin SDK, ensure email verified
     try:
-        ur = firebase_admin.auth.get_user(uid)
+        ur = admin_auth.get_user(uid)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not fetch user record: {e}")
 
