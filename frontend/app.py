@@ -7,6 +7,7 @@ import os
 import requests
 import google.generativeai
 
+from streamlit_cookies_manager import EncryptedCookieManager
 from cookies import ensure_ready
 cookies = ensure_ready()
 
