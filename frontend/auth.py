@@ -332,3 +332,12 @@ def require_login(msg="Please log in to continue"):
         st.warning(msg)
         st.stop()
     return st.session_state["user"]
+
+hide_header="""
+    <style>
+    footer {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+"""
+st.markdown(hide_header, unsafe_allow_html=True)
