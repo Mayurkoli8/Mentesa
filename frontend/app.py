@@ -657,7 +657,6 @@ def main():
                 <button style="
                     background-color: transparent;
                     color: white;
-                    border: 1px;
                     padding: 10px 18px;
                     text-align: center;
                     text-decoration: none;
