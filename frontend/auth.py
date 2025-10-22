@@ -10,7 +10,7 @@ from firebase_admin import auth as admin_auth, firestore
 from ui import logo_animation
 
 from cookies import ensure_ready
-cookies = ensure_ready()  # will st.stop() until ready
+cookies = ensure_ready()  # non-blocking; returns shim if needed
 
 logging.basicConfig(level=logging.INFO)
 
@@ -146,7 +146,7 @@ def login_user(email: str, password: str):
             "displayName": display_name
         }
 
-    # Verified — return info and include id_token for optional future verification
+    # Verified
     return {
         "uid": uid,
         "email": email,
@@ -158,19 +158,21 @@ def login_user(email: str, password: str):
 def send_password_reset(email: str):
     return rest_send_password_reset(email)
 
-# ---------------- Streamlit UI ----------------
+# ---------------- cookie helpers ----------------
 def _persist_user_to_cookies(user_obj: dict):
-    """Save minimal profile to cookies (best-effort)."""
     try:
         cookies["user_email"] = user_obj.get("email")
         cookies["user_uid"] = user_obj.get("uid")
         cookies["user_displayName"] = user_obj.get("displayName")
-        # optionally store id_token (short-lived) if you want server-side verification flows
         if user_obj.get("id_token"):
             cookies["id_token"] = user_obj.get("id_token")
-        cookies.save()
+        # best-effort save; do not block if it fails
+        try:
+            cookies.save()
+        except Exception:
+            logging.exception("cookies.save() failed")
     except Exception:
-        logging.exception("Could not save cookies (non-fatal)")
+        logging.exception("Failed to persist user to cookies (non-fatal)")
 
 def _clear_user_cookies():
     try:
@@ -181,48 +183,34 @@ def _clear_user_cookies():
             cookies.delete("id_token")
         except Exception:
             pass
-        cookies.save()
+        try:
+            cookies.save()
+        except Exception:
+            pass
     except Exception:
-        logging.exception("Could not clear cookies (non-fatal)")
+        logging.exception("Failed to clear cookies (non-fatal)")
 
-# Before rendering UI, attempt to restore from cookies if session missing
+# restore session user from cookies (best-effort)
 if "user" not in st.session_state or not st.session_state.get("user"):
-    cookie_email = cookies.get("user_email")
-    cookie_uid = cookies.get("user_uid")
-    cookie_display = cookies.get("user_displayName")
-    if cookie_email and cookie_uid:
-        st.session_state["user"] = {
-            "email": cookie_email,
-            "uid": cookie_uid,
-            "displayName": cookie_display or cookie_email.split("@")[0],
-            "emailVerified": True
-        }
+    try:
+        cookie_email = cookies.get("user_email")
+        cookie_uid = cookies.get("user_uid")
+        cookie_display = cookies.get("user_displayName")
+        if cookie_email and cookie_uid:
+            st.session_state["user"] = {
+                "email": cookie_email,
+                "uid": cookie_uid,
+                "displayName": cookie_display or cookie_email.split("@")[0],
+                "emailVerified": True
+            }
+    except Exception:
+        logging.exception("Reading cookies failed (non-fatal)")
 
+# ---------------- Streamlit UI ----------------
 def auth_ui():
-    """
-    Email-only auth UI (no OAuth). Blocks access until st.session_state['user'] is present and verified.
-    """
     logo_animation()
+    st.markdown("""<style> .auth-card{max-width:720px;margin:18px auto;padding:20px;border-radius:12px;background:linear-gradient(180deg,#071126,#0f1724);color:#e6eef8;box-shadow:0 8px 24px rgba(2,6,23,0.6);} .auth-title{font-size:1.6rem;font-weight:700;margin-bottom:6px;color:#f0f7ff;} .auth-sub{color:#9fb0d6;margin-bottom:14px;}</style>""", unsafe_allow_html=True)
 
-    st.markdown("""
-    <style>
-    .auth-card {
-        max-width:720px;
-        margin:18px auto;
-        padding:20px;
-        border-radius:12px;
-        background: linear-gradient(180deg,#071126,#0f1724);
-        color:#e6eef8;
-        box-shadow: 0 8px 24px rgba(2,6,23,0.6);
-    }
-    .auth-title { font-size:1.6rem; font-weight:700; margin-bottom:6px; color:#f0f7ff; }
-    .auth-sub { color:#9fb0d6; margin-bottom:14px; }
-    .small-muted { color:#9fb0d6; font-size:0.95rem; }
-    .btn-row { display:flex; gap:8px; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # If already signed-in (and verified)
     if st.session_state.get("user"):
         u = st.session_state["user"]
         st.success(f"✅ Signed in as **{u.get('displayName')}** ({u.get('email')})")
@@ -232,7 +220,6 @@ def auth_ui():
             st.rerun()
         return
 
-    # pending unverified check
     if "pending_unverified" not in st.session_state:
         st.session_state["pending_unverified"] = None
 
@@ -241,7 +228,6 @@ def auth_ui():
         st.markdown('<div class="auth-card">', unsafe_allow_html=True)
         st.markdown(f"<div class='auth-title'>🔔 Please verify your email</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='auth-sub'>We sent a verification email to <b>{pending['email']}</b>. Check your inbox and spam folder.</div>", unsafe_allow_html=True)
-
         col1, col2 = st.columns([1,1])
         with col1:
             if st.button("📧 Resend verification email"):
@@ -270,14 +256,12 @@ def auth_ui():
                         st.success("✅ Email verified — signed in!")
                         st.rerun()
                     else:
-                        st.warning("Email still not verified. Make sure you clicked the link in your inbox.")
+                        st.warning("Email still not verified.")
                 except Exception as e:
                     st.error(f"Could not check verification status: {e}")
-
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    # --- Main card for Login / Signup (no OAuth) ---
     st.markdown('<div class="auth-title">🔐 Welcome to Mentesa</div>', unsafe_allow_html=True)
     st.markdown('<div class="auth-sub">Create an account or sign in with your email to continue.</div>', unsafe_allow_html=True)
 
@@ -295,15 +279,10 @@ def auth_ui():
                     try:
                         resp = login_user(email, password)
                         if resp.get("status") == "unverified":
-                            st.session_state["pending_unverified"] = {
-                                "email": resp["email"],
-                                "id_token": resp.get("id_token"),
-                                "displayName": resp.get("displayName")
-                            }
+                            st.session_state["pending_unverified"] = {"email": resp["email"], "id_token": resp.get("id_token"), "displayName": resp.get("displayName")}
                             st.warning("Your email is not verified. A verification email was sent. Check your inbox.")
                             st.rerun()
                         else:
-                            # successful verified login -> persist to session + cookies
                             st.session_state["user"] = resp
                             _persist_user_to_cookies(resp)
                             st.success("✅ Logged in successfully.")
@@ -336,7 +315,7 @@ def auth_ui():
                     result = signup_user(email, password, name or email.split("@")[0])
                     st.success("✅ Account created. A verification email was sent to your inbox (check spam).")
                     if result.get("verificationLink"):
-                        st.info("Development fallback verification link (click only if email doesn't arrive):")
+                        st.info("Dev fallback verification link:")
                         st.markdown(f"[Verify (admin link)]({result['verificationLink']})")
                     st.info("After verification, come back and log in.")
                 except ValueError as e:
@@ -348,7 +327,6 @@ def auth_ui():
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- Protected helper ----------------
 def require_login(msg="Please log in to continue"):
     if not st.session_state.get("user"):
         st.warning(msg)
