@@ -646,7 +646,7 @@ def main():
         ### 👥 Our Team  
            - **Mayur Koli** – Founder & Lead Developer  
            - **Anirudh Kapurkar** – Frontend Developer  
-           - **Niharika Wagh** – Backend Developer & Research Associate 
+           - **Niharika Wagh** – Backend Developer & Research Associate
         We're constantly innovating to bring smarter, more personalized AI experiences to you.
         """) 
         st.markdown("---")
