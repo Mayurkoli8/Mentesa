@@ -8,6 +8,10 @@ import streamlit as st
 import firebase_admin
 from firebase_admin import auth as admin_auth, firestore
 from ui import logo_animation
+from streamlit.components.v1 import html as components_html
+import hmac
+import hashlib
+from typing import Optional
 
 logging.basicConfig(level=logging.INFO)
 
@@ -21,10 +25,22 @@ SERVICE_ACCOUNT_JSON_B64 = (
     or os.environ.get("SERVICE_ACCOUNT_JSON_B64")
 )
 
+# Signing key used to HMAC the URL blob. Must be set in env or secrets for security.
+# Example: export SESSION_SIGN_KEY="super-long-random-secret"
+SESSION_SIGN_KEY = (
+    (st.secrets.get("SESSION_SIGN_KEY") if hasattr(st, "secrets") else None)
+    or os.environ.get("SESSION_SIGN_KEY")
+)
+
 if not FIREBASE_API_KEY or not SERVICE_ACCOUNT_JSON_B64:
-    # friendly message for deployment environments if missing
     st.error("❌ Missing Firebase configuration. Set FIREBASE_API_KEY and SERVICE_ACCOUNT_JSON_B64 in secrets or env.")
     st.stop()
+
+if not SESSION_SIGN_KEY:
+    logging.warning(
+        "SESSION_SIGN_KEY not set. URL-persistent sessions will NOT be HMAC-signed. "
+        "Set SESSION_SIGN_KEY in env or Streamlit secrets for tamper protection."
+    )
 
 # Initialize Firebase Admin (idempotent)
 if not firebase_admin._apps:
@@ -39,6 +55,80 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 FIREBASE_REST_BASE = "https://identitytoolkit.googleapis.com/v1"
+
+# ---------------- helpers: encode / sign ----------------
+def _encode_user_for_url(user: dict) -> str:
+    """Return base64-encoded JSON safe for a query param."""
+    payload = json.dumps({
+        "email": user.get("email"),
+        "uid": user.get("uid"),
+        "displayName": user.get("displayName")
+    }, separators=(",", ":"), ensure_ascii=False)
+    return base64.urlsafe_b64encode(payload.encode()).decode()
+
+def _decode_user_from_url(b64: str) -> Optional[dict]:
+    try:
+        raw = base64.urlsafe_b64decode(b64.encode()).decode()
+        data = json.loads(raw)
+        return {
+            "email": data.get("email"),
+            "uid": data.get("uid"),
+            "displayName": data.get("displayName"),
+            "emailVerified": True
+        }
+    except Exception:
+        return None
+
+def _compute_signature(b64: str) -> str:
+    """Compute HMAC-SHA256 hex signature for given base64 blob."""
+    if not SESSION_SIGN_KEY:
+        # If no key available return empty string (caller will treat as unsigned)
+        return ""
+    sig = hmac.new(SESSION_SIGN_KEY.encode(), b64.encode(), hashlib.sha256).hexdigest()
+    return sig
+
+def _verify_signature(b64: str, sig: str) -> bool:
+    if not SESSION_SIGN_KEY:
+        # No server-side secret -> cannot verify, consider invalid
+        return False
+    expected = _compute_signature(b64)
+    # Use hmac.compare_digest for timing-safe compare
+    return hmac.compare_digest(expected, sig)
+
+# ---------------- URL helpers ----------------
+def persist_user_in_url_and_reload(user: dict):
+    """
+    Encode user info into URL as ?u=<blob>&s=<sig> and navigate there.
+    The app will read and verify on load, then clear the params from the bar.
+    """
+    token = _encode_user_for_url(user)
+    sig = _compute_signature(token)
+    # Build JS to navigate to same path with params
+    js = f"""
+    <script>
+      (function(){{
+        const token = "{token}";
+        const sig = "{sig}";
+        const next = window.location.pathname + "?u=" + token + "&s=" + sig;
+        window.location.href = next;
+      }})();
+    </script>
+    """
+    components_html(js, height=1)
+
+def clear_url_param_after_restore():
+    """Run JS to remove query params so the URL is clean (non-permanent)."""
+    js = """
+    <script>
+      (function(){
+        if (window.history && window.history.replaceState) {
+          const url = window.location.pathname;
+          window.history.replaceState({}, '', url);
+        }
+      })();
+    </script>
+    """
+    components_html(js, height=1)
 
 # ---------------- REST helpers ----------------
 def _rest_post(path: str, payload: dict, timeout: int = 15):
@@ -88,7 +178,7 @@ def signup_user(email: str, password: str, display_name: str):
 
         create_user_profile_if_missing(uid, email, display_name, oauth=False)
 
-        # Try REST sign-in to obtain idToken, which allows asking Firebase to send verification email
+        # Try REST sign-in to obtain idToken so we can request verification email
         try:
             signin = rest_sign_in(email, password)
             id_token = signin.get("idToken")
@@ -134,15 +224,16 @@ def login_user(email: str, password: str):
 
     id_token = resp.get("idToken")
     uid = resp.get("localId")
+    email_addr = resp.get("email")
 
     try:
         user_record = admin_auth.get_user(uid)
         email_verified = bool(user_record.email_verified)
-        display_name = user_record.display_name or email.split("@")[0]
+        display_name = user_record.display_name or email_addr.split("@")[0]
     except Exception:
         logging.exception("Could not fetch Admin user record during login_user")
         email_verified = False
-        display_name = email.split("@")[0]
+        display_name = email_addr.split("@")[0]
 
     if not email_verified:
         # try to resend verification
@@ -154,7 +245,7 @@ def login_user(email: str, password: str):
 
         return {
             "status": "unverified",
-            "email": email,
+            "email": email_addr,
             "id_token": id_token,
             "displayName": display_name
         }
@@ -162,7 +253,7 @@ def login_user(email: str, password: str):
     # verified
     return {
         "uid": uid,
-        "email": email,
+        "email": email_addr,
         "displayName": display_name,
         "emailVerified": True
     }
@@ -170,15 +261,42 @@ def login_user(email: str, password: str):
 def send_password_reset(email: str):
     return rest_send_password_reset(email)
 
+# ---------------- Restore session from signed URL on module import ----------------
+# If `st.session_state["user"]` is missing, check query params for `u` and `s`.
+# st.query_params returns lists for values, handle that.
+if "user" not in st.session_state or not st.session_state.get("user"):
+    params = st.query_params
+    u = params.get("u")
+    s = params.get("s")
+    if u:
+        b64 = u[0] if isinstance(u, (list, tuple)) else u
+        sig = (s[0] if isinstance(s, (list, tuple)) else s) if s else ""
+        if SESSION_SIGN_KEY:
+            if sig and _verify_signature(b64, sig):
+                restored = _decode_user_from_url(b64)
+                if restored and restored.get("uid"):
+                    st.session_state["user"] = restored
+                # once restored, clear params for cleanliness
+                clear_url_param_after_restore()
+            else:
+                # signature invalid -> do nothing but clear url param for safety
+                logging.warning("Invalid session signature in URL; ignoring.")
+                clear_url_param_after_restore()
+        else:
+            # No signing key: fallback to unsigned restore (insecure)
+            restored = _decode_user_from_url(b64)
+            if restored and restored.get("uid"):
+                st.session_state["user"] = restored
+            clear_url_param_after_restore()
+
 # ---------------- Streamlit UI ----------------
 def auth_ui():
     """
     Email-only auth UI (no OAuth). Blocks access until st.session_state['user'] is present and verified.
+    Uses HMAC-signed URL-persistence to survive page reloads.
     """
-
     logo_animation()
 
-    # Simple accessible styles & card
     st.markdown("""
     <style>
     .auth-card {
@@ -197,27 +315,21 @@ def auth_ui():
     </style>
     """, unsafe_allow_html=True)
 
-    # session keys
-    if "user" not in st.session_state:
-        cookies["user_email"] = email
-        cookies["user_uid"] = uid
-        cookies.save()
-        st.session_state["user"] = {"email": email, "uid": uid}
-        st.rerun()
-
-    if "pending_unverified" not in st.session_state:
-        st.session_state["pending_unverified"] = None
-
     # If already signed-in (and verified)
     if st.session_state.get("user"):
         u = st.session_state["user"]
         st.success(f"✅ Signed in as **{u.get('displayName')}** ({u.get('email')})")
         if st.button("Sign out"):
             st.session_state["user"] = None
+            # nothing else stored server-side; just clear URL if present
+            clear_url_param_after_restore()
             st.rerun()
         return
 
-    # If pending unverified (user tried login but hasn't verified yet)
+    # pending unverified check
+    if "pending_unverified" not in st.session_state:
+        st.session_state["pending_unverified"] = None
+
     pending = st.session_state.get("pending_unverified")
     if pending:
         st.markdown('<div class="auth-card">', unsafe_allow_html=True)
@@ -248,8 +360,8 @@ def auth_ui():
                             "emailVerified": True
                         }
                         st.session_state["pending_unverified"] = None
-                        st.success("✅ Email verified — signed in!")
-                        st.rerun()
+                        # persist to URL and reload (signed)
+                        persist_user_in_url_and_reload(st.session_state["user"])
                     else:
                         st.warning("Email still not verified. Make sure you clicked the link in your inbox.")
                 except Exception as e:
@@ -259,11 +371,9 @@ def auth_ui():
         return
 
     # --- Main card for Login / Signup (no OAuth) ---
-    # st.markdown('<div class="auth-card">', unsafe_allow_html=True)
     st.markdown('<div class="auth-title">🔐 Welcome to Mentesa</div>', unsafe_allow_html=True)
     st.markdown('<div class="auth-sub">Create an account or sign in with your email to continue.</div>', unsafe_allow_html=True)
 
-    # Use an explicit label for accessibility (Streamlit warns when label is empty)
     action = st.radio("Choose action", ["Login", "Sign Up"], horizontal=True)
 
     if action == "Login":
@@ -286,9 +396,9 @@ def auth_ui():
                             st.warning("Your email is not verified. A verification email was sent. Check your inbox.")
                             st.rerun()
                         else:
+                            # successful verified login -> persist to URL and reload (signed)
                             st.session_state["user"] = resp
-                            st.success("✅ Logged in successfully.")
-                            st.rerun()
+                            persist_user_in_url_and_reload(resp)
                     except requests.HTTPError as e:
                         st.error(f"Login failed: {e}")
                     except Exception as e:

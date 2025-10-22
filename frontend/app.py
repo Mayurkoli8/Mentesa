@@ -9,10 +9,8 @@ import google.generativeai
 
 from streamlit_cookies_manager import EncryptedCookieManager
 
-# --- COOKIE MANAGER ---
-cookies = EncryptedCookieManager(prefix="mentesa_", password="super_secret_key")
-if not cookies.ready():
-    st.stop()
+from cookies import ensure_ready
+cookies = ensure_ready()
 
 
 # Add root dir so utils/ can be imported
@@ -46,15 +44,6 @@ from auth import auth_ui, require_login
 
 st.set_page_config(page_title="Mentesa")
 
-if "user" not in st.session_state:
-    if cookies.get("user_email") and cookies.get("user_uid"):
-        st.session_state["user"] = {
-            "email": cookies.get("user_email"),
-            "uid": cookies.get("user_uid")
-        }
-    else:
-        st.session_state["user"] = None
-        
 
 # --- Authentication check ---
 if "user" not in st.session_state or not st.session_state["user"]:
