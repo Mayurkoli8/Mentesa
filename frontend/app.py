@@ -620,7 +620,7 @@ def bot_management_ui():
 # ---------------- MAIN APP ----------------
 def main():
 
-    tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots", "👤 Account"])
+    tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots", "👤 Account", "👨‍💻 Meet Us"])
 
     with tabs[0]:
         create_and_save_bot()
@@ -636,7 +636,23 @@ def main():
             cookies.delete("user_uid")
             cookies.save()
             st.rerun()
-
-
+    with tabs[4]:
+        st.header("👨‍💻 Meet the Mentesa Team")
+        st.markdown("---")
+        st.markdown("""
+        ### 🧠 About Mentesa  
+        Mentesa is a **no-code platform** that empowers anyone to create, manage, and chat with their own AI-powered bots.  
+        Our mission is to make generative AI accessible, personal, and fun.  
+        ### 👥 Our Team  
+           - **Mayur Koli** – Founder & Lead Developer  
+           - **Anirudh Kapurkar** – Frontend Developer  
+           - **Niharika Wagh** – Backend Developer & Research Associate 
+        We're constantly innovating to bring smarter, more personalized AI experiences to you.
+        """) 
+        st.markdown("---")
+        st.subheader("🌐 More About Us")    
+        if st.button("🚀 Team Mentesa"):
+            st.markdown('<meta http-equiv="refresh" content="0; url=https://developer.mentesa.live/">',unsafe_allow_html=True)
+            
 if __name__ == "__main__":
     main()

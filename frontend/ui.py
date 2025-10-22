@@ -57,6 +57,7 @@ def apply_custom_styles():
 header {visibility: hidden;}
 footer {visibility: hidden;}
 </style>
+
     """, unsafe_allow_html=True)
 
 # hide_header="""
