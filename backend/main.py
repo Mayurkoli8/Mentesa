@@ -26,6 +26,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.firebase_config import db
 
+# for cookies
+from fastapi import Response, Cookie
+from datetime import timedelta
+import requests as _requests  # to avoid name clash with the frontend requests
+
+
 # -------------------------------------------------
 # Init
 # -------------------------------------------------
@@ -131,6 +137,57 @@ def find_bot_by_id(bid: str) -> Optional[Dict[str, Any]]:
 
 def find_bot_by_api_key(key: str) -> Optional[Dict[str, Any]]:
     return next((b for b in bots if b.get("api_key") == key), None)
+
+# Firebase REST endpoint (for password sign-in)
+FIREBASE_REST_BASE = "https://identitytoolkit.googleapis.com/v1"
+FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY")  # ensure this is in your env or .env
+
+def _rest_post(path: str, payload: dict, timeout: int = 10):
+    if not FIREBASE_API_KEY:
+        raise RuntimeError("FIREBASE_API_KEY is not set in backend env")
+    url = f"{FIREBASE_REST_BASE}/{path}?key={FIREBASE_API_KEY}"
+    r = _requests.post(url, json=payload, timeout=timeout)
+    r.raise_for_status()
+    return r.json()
+
+SESSION_TTL_DAYS = int(os.getenv("SESSION_TTL_DAYS", "30"))
+
+def create_session(uid: str, email: str, display_name: str) -> str:
+    sid = str(uuid.uuid4())
+    expires = (datetime.utcnow() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
+    doc = {
+        "uid": uid,
+        "email": email,
+        "displayName": display_name,
+        "created_at": datetime.utcnow().isoformat(),
+        "expires_at": expires,
+    }
+    db.collection("sessions").document(sid).set(doc)
+    return sid
+
+def get_session(sid: str) -> Optional[Dict[str, Any]]:
+    if not sid:
+        return None
+    doc = db.collection("sessions").document(sid).get()
+    if not doc.exists:
+        return None
+    data = doc.to_dict() or {}
+    # check expiry
+    exp = data.get("expires_at")
+    if exp:
+        try:
+            if datetime.fromisoformat(exp) < datetime.utcnow():
+                # expired -> delete
+                db.collection("sessions").document(sid).delete()
+                return None
+        except Exception:
+            pass
+    return data
+
+def delete_session(sid: str):
+    if not sid:
+        return
+    db.collection("sessions").document(sid).delete()
 
 # -------------------------------------------------
 # Routes: Bots
@@ -416,3 +473,66 @@ def chat(req: ChatRequest,
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/auth/login")
+def auth_login(payload: Dict[str, str]):
+    """
+    Body: { "email": "...", "password": "..." }
+    Returns: { "session_id": "...", "user": {...} }
+    """
+    email = payload.get("email")
+    password = payload.get("password")
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="email and password required")
+
+    # 1) REST sign-in for password
+    try:
+        resp = _rest_post("accounts:signInWithPassword", {"email": email, "password": password, "returnSecureToken": True})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Sign-in failed: {e}")
+
+    uid = resp.get("localId")
+    if not uid:
+        raise HTTPException(status_code=400, detail="Sign-in did not return user id")
+
+    # 2) Get user record via Admin SDK, ensure email verified
+    try:
+        ur = firebase_admin.auth.get_user(uid)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not fetch user record: {e}")
+
+    if not getattr(ur, "email_verified", False):
+        raise HTTPException(status_code=403, detail="Email not verified")
+
+    # 3) Create session & return session id
+    sid = create_session(uid, email, ur.display_name or email.split("@")[0])
+    return {"session_id": sid, "user": {"uid": uid, "email": email, "displayName": ur.display_name}}
+
+@app.post("/auth/logout")
+def auth_logout(payload: Dict[str, str] = None):
+    """
+    Body optionally: { "session_id": "..." }
+    Deletes session in Firestore.
+    """
+    sid = None
+    if payload:
+        sid = payload.get("session_id")
+    # also accept session id via header? keep simple for now
+    if not sid:
+        raise HTTPException(status_code=400, detail="session_id required")
+    delete_session(sid)
+    return {"ok": True}
+
+@app.get("/auth/session")
+def auth_get_session(session_id: Optional[str] = None):
+    """
+    Query current session by session_id query param or ?session_id=...
+    """
+    # Accept both header and query param if you want; simple: session_id query param or header
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id required")
+    s = get_session(session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+    # return user data
+    return {"user": {"uid": s.get("uid"), "email": s.get("email"), "displayName": s.get("displayName")}}
