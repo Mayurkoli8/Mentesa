@@ -9,6 +9,16 @@ import firebase_admin
 from firebase_admin import auth as admin_auth, firestore
 from ui import logo_animation
 
+hide_header="""
+    <style>
+    footer {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+"""
+st.markdown(hide_header, unsafe_allow_html=True)
+
+
 from cookies import ensure_ready
 cookies = ensure_ready()  # non-blocking; returns shim if needed
 
@@ -333,11 +343,3 @@ def require_login(msg="Please log in to continue"):
         st.stop()
     return st.session_state["user"]
 
-hide_header="""
-    <style>
-    footer {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    </style>
-"""
-st.markdown(hide_header, unsafe_allow_html=True)
