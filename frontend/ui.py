@@ -119,7 +119,7 @@ def logo_animation():
         img.src = "data:image/png;base64,{img_base64}";
         const particles = [];
         const radius = 2;
-        const maxParticles =1000;
+        const maxParticles =1500;
         let formed = false;
         let startTime = null;
 
@@ -234,7 +234,7 @@ def logo_animation():
             ctx.arc(p.x, p.y, radius, 0, Math.PI*2);
             ctx.fillStyle = p.color.replace('1)', `${{p.alpha}})`);
             ctx.shadowColor = p.color;
-            ctx.shadowBlur = 12;
+            ctx.shadowBlur = 0;
             ctx.fill();
           }});
 
