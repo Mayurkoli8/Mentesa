@@ -28,7 +28,7 @@
 
   const header = document.createElement("div");
   header.style.cssText =
-    "background:#007bff; color:#fff; padding:12px; text-align:center; font-weight:bold;";
+    "background:rgb(14, 17, 23); color:#fff; padding:12px; text-align:center; font-weight:bold;";
   header.textContent = botName;
 
   const messagesBox = document.createElement("div");
@@ -55,12 +55,12 @@
   const sendBtn = document.createElement("button");
   sendBtn.innerText = "➤";
   sendBtn.style.cssText =
-    "margin-left:6px; padding:0 16px; border:none; border-radius:50%; cursor:pointer; background:#007bff; color:#fff; font-size:16px;";
+    "margin-left:6px; padding:0 16px; border:none; border-radius:50%; cursor:pointer; background:rgb(14, 17, 23); color:#fff; font-size:16px;";
 
-  const footer = document.createElement("div");
-  footer.style.cssText =
-    "background:#007bff; padding:5px 0px; color:#fff; text-align:center; font-size:12px;";
-  footer.innerHTML = `Powered by <a href="https://mentesa.live" target="_blank" style="color:#000; text-decoration:none;"> Mentesa Family</a> | <a href="https://mentesa.live" target="_blank" style="color:#000; text-decoration:none;">Privacy Policy</a>`;
+const footer = document.createElement("div");
+footer.style.cssText =
+    "background:rgb(14, 17, 23); padding:5px 0px; color:#fff; text-align:center; font-size:12px;";
+footer.innerHTML = `Powered by <a href="https://mentesav6.streamlit.app" target="_blank" style="color:cyan; text-decoration:none;"> Mentesa Family</a> | <a href="https://mentesav6.streamlit.app" target="_blank" style="color:cyan; text-decoration:none;">Privacy Policy</a>`;
 
   inputBox.appendChild(input);
   inputBox.appendChild(sendBtn);
@@ -79,7 +79,7 @@
     right: 20px;
     width: 55px;
     height: 55px;
-    background: #007bff;
+    background: rgb(14, 17, 23);
     color: #fff;
     border-radius: 50%;
     display: flex;
@@ -115,7 +115,7 @@
 
     if (sender === "You") {
       msgWrapper.style.justifyContent = "flex-end";
-      msg.style.background = "#007bff";
+      msg.style.background = "rgb(14, 17, 23)";
       msg.style.color = "#fff";
       msg.style.borderBottomRightRadius = "4px";
     } else {

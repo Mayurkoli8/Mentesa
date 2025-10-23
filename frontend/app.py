@@ -1,3 +1,4 @@
+# app.py
 import streamlit as st
 import uuid
 import json
@@ -6,21 +7,27 @@ import os
 import requests
 import google.generativeai
 
+from cookies import ensure_ready
+cookies = ensure_ready()
+
 
 # Add root dir so utils/ can be imported
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from streamlit.components.v1 import html as components_html
-from utils.llm import generate_bot_config_gemini, chat_with_gemini
 from ui import apply_custom_styles, show_header, logo_animation
 
 from utils.firebase_config import db
-BACKEND="https://mentesav7.onrender.com"
+from firebase_admin import firestore as fa_firestore
 
+from streamlit.components.v1 import html as components_html
+from utils.llm import generate_bot_config_gemini, chat_with_gemini
 
+BACKEND="https://mentesav8.onrender.com"
+
+from utils.file_handle import safe_text
 # --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="Mentesa V7",
+    page_title="Mentesa V8",
     page_icon="frontend/logo.png",
     layout="centered",
     initial_sidebar_state="expanded"
@@ -31,47 +38,164 @@ st.markdown("""
     <meta name="keywords" content="AI bots, chatbot builder, Mentesa, generative AI, Streamlit">
 """, unsafe_allow_html=True)
 
+from auth import auth_ui, require_login
 
-# Apply styles
-apply_custom_styles()
+st.set_page_config(page_title="Mentesa")
+
+
+# --- Authentication check ---
+if "user" not in st.session_state or not st.session_state["user"]:
+    auth_ui()
+    st.stop()
+
+user = st.session_state["user"]
+# For any page or operation that must be protected:
+# user = require_login()
+# uid = user['uid']
+# now query Firestore for bots owned by uid, e.g.:
+# db.collection("bots").where("owner_uid", "==", uid).stream()
 
 # Logo Mentesa animation
 logo_animation()
 
+# Apply styles
+apply_custom_styles()
+
 # # Show header
-# show_header()
+#show_header()
+
+# ---------------- utility: load bots for current user ----------------
+def load_user_bots():
+    """
+    Return list of bot dicts owned by the current user.
+    This will attempt to query by owner_uid and owner_email and deduplicate results.
+    Always returns a list (possibly empty).
+    """
+    user = st.session_state.get("user") or {}
+    uid = user.get("uid")
+    email = user.get("email")
+    bots = {}
+    try:
+        # Try owner_uid first (fast and strict)
+        if uid:
+            try:
+                for doc in db.collection("bots").where("owner_uid", "==", uid).stream():
+                    d = doc.to_dict() or {}
+                    d["id"] = doc.id
+                    bots[d["id"]] = d
+            except Exception:
+                # don't fail hard — continue to owner_email fallback
+                pass
+
+        # Then try owner_email (covers records created earlier or backend that stored only email)
+        if email:
+            try:
+                for doc in db.collection("bots").where("owner_email", "==", email).stream():
+                    d = doc.to_dict() or {}
+                    d["id"] = doc.id
+                    bots[d["id"]] = d
+            except Exception:
+                # fallback to filtering client-side below
+                pass
+
+        # If both queries yielded nothing, as a robust fallback we fetch a small set and filter locally.
+        if not bots:
+            try:
+                # only fetch a limited set to avoid scanning entire DB; if your dataset is small you can remove limit
+                for doc in db.collection("bots").stream():
+                    d = doc.to_dict() or {}
+                    owner_uid = d.get("owner_uid")
+                    owner_email = d.get("owner_email")
+                    if (uid and owner_uid == uid) or (email and owner_email == email):
+                        d["id"] = doc.id
+                        bots[d["id"]] = d
+            except Exception:
+                # last resort: return empty list
+                pass
+    except Exception as e:
+        st.error(f"Failed to load your bots: {e}")
+        return []
+
+    # return deduplicated bots as list
+    return list(bots.values())
 
 # ---------------- BOT CREATION ----------------
-import uuid
-import streamlit as st
 from utils.llm import generate_bot_config_gemini
-
 
 def create_and_save_bot():
     st.subheader("✨ Create Your Bot")
     st.write("Describe the bot you want, and we'll generate it with AI.")
 
-    name="Mentesa_Bot"
+    name = "Mentesa_Bot"
     prompt = st.text_area("🤔 What type of bot do you want?")
     url = st.text_input("🌐 (Optional) Website URL for the bot to ingest (include https://)")
+    uploaded_files = st.file_uploader(
+        "📂 (Optional) Upload RAG Files (PDF, DOCX, TXT)", 
+        type=["pdf", "docx", "txt"], 
+        accept_multiple_files=True
+    )
 
     if st.button("🚀 Create Bot"):
         if not prompt.strip():
             st.warning("Please enter a prompt before generating.")
             return
 
-        # Auto-generate name if not given
         import time
         bot_name = name.strip() if name.strip() else f"Bot_{int(time.time())}"
 
+        # Prepare files payload if files were uploaded
+        files_payload = []
+        if uploaded_files:
+            import io
+            for f in uploaded_files:
+                try:
+                    data_bytes = f.read()
+                    filename = f.name
+                    content = ""
+
+                    ext = filename.lower().rsplit(".", 1)[-1]
+
+                    if ext == "pdf":
+                        from PyPDF2 import PdfReader
+                        reader = PdfReader(io.BytesIO(data_bytes))
+                        content = "\n".join([p.extract_text() or "" for p in reader.pages])
+                    elif ext == "docx":
+                        from docx import Document
+                        doc = Document(io.BytesIO(data_bytes))
+                        paragraphs = [p.text for p in doc.paragraphs]
+                        content = "\n".join(paragraphs)
+                    else:  # txt or fallback
+                        try:
+                            content = data_bytes.decode("utf-8")
+                        except Exception:
+                            content = data_bytes.decode("latin-1", errors="ignore")
+
+                    from utils.file_handle import safe_text
+                    content = safe_text(content)[:15000]
+                    if not content.strip():
+                        content = "-"
+
+                    files_payload.append({"name": filename, "text": content})
+
+                except Exception as e:
+                    st.error(f"Failed to read uploaded file '{f.name}': {e}")
+                    return
+
+        # owner info
+        user = st.session_state.get("user") or {}
+        owner_uid = user.get("uid")
+        owner_email = user.get("email")
+        
         payload = {
             "name": bot_name.strip(),
             "prompt": prompt.strip(),
-            "url": url.strip() if url.strip() else None,
-            "config": {}
+            "config": {"urls": [url.strip()]} if url.strip() else {},
+            "files": files_payload,
+            # --- owner info for backend/firestore
+            "owner_uid": owner_uid,
+            "owner_email": owner_email,
         }
-
-
+        
         with st.spinner("Generating bot..."):
             try:
                 response = requests.post(f"{BACKEND}/bots", json=payload, timeout=120)
@@ -82,7 +206,11 @@ def create_and_save_bot():
         if response.status_code in (200, 201):
             data = response.json()
             bot_name = data["bot"]["name"]
-            st.success(f"✅ Bot '{bot_name}' created and saved!")
+            if files_payload:
+                uploaded_names = ", ".join([f['name'] for f in files_payload])
+                st.success(f"✅ Bot '{bot_name}' created and saved with file(s): {uploaded_names}")
+            else:
+                st.success(f"✅ Bot '{bot_name}' created and saved!")
         else:
             st.error(f"Failed to save bot: {response.text}")
 
@@ -99,34 +227,42 @@ def normalize_history(raw_history):
                 normalized.append({"role": "bot", "content": turn["bot"]})
     return normalized
 
-# ---------------- CHAT INTERFACE ----------------
 def chat_interface():
     st.header("💬 Chat with Your Bot")
     st.markdown("---")
 
-    # --- Load bots from Firebase ---
-    bots_ref = db.collection("bots").stream()
-    bots = []
-    for doc in bots_ref:
-        data = doc.to_dict()
-        data["id"] = doc.id
-        bots.append(data)
+    # Ensure we have user uid/email
+    user = st.session_state.get("user") or {}
+    uid = user.get("uid")
+    email = user.get("email")
+    if not (uid or email):
+        st.error("User not found. Please sign in.")
+        return
+
+    # --- Load bots from Firebase (only current user's bots) ---
+    try:
+        bots = load_user_bots()
+    except Exception as e:
+        st.error(f"Failed to load bots: {e}")
+        return
 
     if not bots:
-        st.info("No bots available — create one above.")
+        st.info("You don't have any bots yet — create one first.")
         return
 
     # --- Select bot ---
-    bot_items = [(f"{b['name']} ({b['id'][:6]})", b['id']) for b in bots]
-
-    selected_label, selected_bot_id = st.selectbox(
+    selected_bot_info = st.selectbox(
         "Choose a bot",
-        options=bot_items,
-        format_func=lambda x: x[0],
+        options=bots,
+        format_func=lambda b: f"{b.get('name','(unknown)')} ({b.get('id','')[:6]})",
         key="chat_selectbox"
     )
 
-    selected_bot_info = next(b for b in bots if b['id'] == selected_bot_id)
+    if not selected_bot_info:
+        st.info("No bot selected.")
+        return
+
+    selected_bot_id = selected_bot_info["id"]
 
     st.markdown("---")
 
@@ -269,83 +405,222 @@ def chat_interface():
         st.rerun()
 
 # ---------------- BOT MANAGEMENT ----------------
-
 def bot_management_ui():
     st.subheader("🛠️ Manage Your Bots")
 
-    # Load bots from Firebase
-    bots = []
-    for doc in db.collection("bots").stream():
-        bot = doc.to_dict()
-        bot["id"] = doc.id  # add the document ID
-        bots.append(bot)
+    # Ensure we have user uid/email
+    user = st.session_state.get("user") or {}
+    uid = user.get("uid")
+    email = user.get("email")
+    if not (uid or email):
+        st.error("User not found. Please sign in.")
+        return
+
+    # Load bots from Firebase (only this user's bots)
+    try:
+        bots = load_user_bots()
+    except Exception as e:
+        st.error(f"Failed to load bots: {e}")
+        return
 
     if not bots:
         st.info("No bots available — create one first.")
         return
 
     # --- Select bot ---
-    bot_options = {f"{b['name']} ({b['id'][:6]})": b['id'] for b in bots}
-    selected_label = st.selectbox("Choose a bot", list(bot_options.keys()), key="manage_select")
-    selected_bot_id = bot_options[selected_label]
-    selected_bot_info = next(b for b in bots if b['id'] == selected_bot_id)
+    selected_bot_info = st.selectbox(
+        "Choose a bot",
+        options=bots,
+        format_func=lambda b: f"{b.get('name','(unknown)')} ({b.get('id','')[:6]})",
+        key="manage_select"
+    )
+    if not selected_bot_info:
+        st.info("No bot selected.")
+        return
+    selected_bot_id = selected_bot_info["id"]
 
     # --- Bot management columns ---
     col1, col2, col3, col4 = st.columns([2, 3, 1, 1])
 
-    new_name = col1.text_input("Name", value=selected_bot_info['name'], key=f"name_{selected_bot_id}")
+    # Rename
+    new_name = col1.text_input("Name", value=selected_bot_info.get('name',''), key=f"name_{selected_bot_id}")
     if col1.button("✏️ Rename", key=f"rename_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).update({"name": new_name})
         st.success("Renamed!")
         st.rerun()
 
-    new_persona = col2.text_area("Personality", value=selected_bot_info['personality'], key=f"persona_{selected_bot_id}", height=80)
+    # Update Personality
+    new_persona = col2.text_area("Personality", value=selected_bot_info.get('personality', ""), key=f"persona_{selected_bot_id}", height=80)
     if col2.button("✏️ Update", key=f"update_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).update({"personality": new_persona})
         st.success("Personality updated!")
         st.rerun()
 
+    # Clear Chat
     if col3.button("🧹 Clear Chat", key=f"manage_clear_{selected_bot_id}"):
         db.collection("bot_chats").document(selected_bot_id).delete()
         if "history" in st.session_state:
-            st.session_state.history=[]
+            st.session_state.history = []
         st.success("Chat history cleared!")
         st.rerun()
 
+    # Delete Bot
     if col4.button("🗑️ Delete", key=f"delete_{selected_bot_id}"):
         db.collection("bots").document(selected_bot_id).delete()
         st.success("Bot deleted!")
         st.rerun()
 
+    # --- RAG Management (Files & URLs) ---
+    st.markdown("---")
+    st.subheader("📂 Upload RAG Files")
+
+    import io
+    from utils.file_handle import upload_file, safe_text   # ensure safe_text is importable
+
+    # Upload Files
+    uploaded_file = st.file_uploader("Upload a RAG File", key=f"file_{selected_bot_id}")
+    if uploaded_file:
+        filename = uploaded_file.name
+        flag = f"uploaded_{selected_bot_id}_{filename}"
+        success_flag = f"success_{selected_bot_id}"
+
+        # If file already processed in this session
+        if st.session_state.get(flag):
+            # Show success if it was freshly uploaded
+            if st.session_state.get(success_flag):
+                st.success(f"✅ '{filename}' uploaded successfully!")
+            else:
+                st.info("File already uploaded in this session. If you want to re-upload, delete the previous file first.")
+        else:
+            try:
+                data_bytes = uploaded_file.read()
+                content = ""
+
+                file_ext = filename.lower().split(".")[-1]
+
+                if file_ext == "pdf":
+                    from PyPDF2 import PdfReader
+                    reader = PdfReader(io.BytesIO(data_bytes))
+                    content = "\n".join([p.extract_text() or "" for p in reader.pages])
+
+                elif file_ext == "docx":
+                    from docx import Document
+                    doc = Document(io.BytesIO(data_bytes))
+                    content = "\n".join([p.text for p in doc.paragraphs])
+
+                else:
+                    try:
+                        content = data_bytes.decode("utf-8")
+                    except Exception:
+                        content = data_bytes.decode("latin-1", errors="ignore")
+
+                from utils.file_handle import upload_file, safe_text
+                content = safe_text(content)
+                if not content.strip():
+                    content = "-"
+
+                # Upload and mark session state
+                upload_file(selected_bot_id, filename, content)
+                st.session_state[flag] = True
+                st.session_state[success_flag] = True
+
+                st.success(f"✅ '{filename}' uploaded successfully!")
+
+            except Exception as e:
+                st.error(f"Upload failed: {type(e).__name__}: {e}")
+                if flag in st.session_state:
+                    del st.session_state[flag]
+    else:
+        # Clear flags if no file is currently selected
+        for key in list(st.session_state.keys()):
+            if key.startswith("uploaded_") or key.startswith("success_"):
+                del st.session_state[key]
+
+    # List existing RAG files
+    st.subheader("Current RAG Files")
+    file_list = selected_bot_info.get("file_data", []) or []
+
+    for idx, file_entry in enumerate(file_list):
+        col_name, col_del = st.columns([4, 1])
+        col_name.write(file_entry.get("name"))
+
+        delete_key = f"delete_file_{idx}_{selected_bot_id}"
+        if col_del.button("🗑️ Delete", key=delete_key):
+            # call delete helper to remove from Firestore
+            try:
+                from utils.file_handle import delete_file
+                deleted = delete_file(selected_bot_id, file_entry.get("name"))
+            except Exception as e:
+                st.error(f"Delete failed: {e}")
+                deleted = False
+
+            # clear only that file's session-state upload-flag so user can re-upload
+            flag = f"uploaded_{selected_bot_id}_{file_entry.get('name')}"
+            # after fetching file_list:
+            for fe in file_list:
+                flag = f"uploaded_{selected_bot_id}_{fe.get('name')}"
+                if st.session_state.get(flag):
+                    del st.session_state[flag]
+            if flag in st.session_state:
+                del st.session_state[flag]
+
+            if deleted:
+                st.success("File deleted!")
+            else:
+                st.warning("File not found / already deleted.")
+
+            # refresh UI (fetches current Firestore state on next run)
+            st.rerun()
+
+
+    # --- Website URLs ---
+    st.markdown("---")
+    st.subheader("🌐 Manage Website URLs")
+    # Add Website URL
+    new_url = st.text_input("Add Website URL", key=f"url_{selected_bot_id}")
+    if st.button("Add URL", key=f"add_url_{selected_bot_id}"):
+        if new_url:
+            from utils.file_handle import scrape_and_add_url  # we’ll create this
+            scrape_and_add_url(selected_bot_id, new_url)
+            st.success(f"URL added and content appended: {new_url}")
+            st.rerun()
+    
+    # Show existing URLs
+    # Manage URLs
+    st.subheader("Current URLs")
+    # Fetch fresh data
+    bot_doc = db.collection("bots").document(selected_bot_id).get()
+    urls = bot_doc.to_dict().get("config", {}).get("urls", [])
+    for u in urls:
+        col1, col2 = st.columns([5, 1])
+        col1.write(u)
+        if col2.button("🗑️ Delete", key=f"del_url_{u}_{selected_bot_id}"):
+            from utils.file_handle import delete_url
+            delete_url(selected_bot_id, u)
+            st.success(f"Deleted {u}")
+            st.rerun()
+
+
     # --- Embed snippet ---
     st.markdown("---")
     st.write("📄 **Embed this bot on your website:**")
-
     api_key = selected_bot_info.get("api_key")
     if api_key:
         embed_code = f'<script src="{BACKEND}/static/embed.js" data-api-key="{api_key}" data-bot-name="{selected_bot_info["name"]}"></script>'
         st.code(embed_code, language="html")
-
-
-        # Instructions
         st.markdown(f"""
         **How to use this snippet:**
-
-        1. Copy the code above (click inside the box and use Ctrl+C or your preferred copy method).
-        2. Open your website’s HTML (index.html) file.
-        3. Paste the snippet **before the closing `</body>` tag**.
-        4. Save your file and refresh your website.
-        5. The chat widget for **{selected_bot_info['name']}** will appear in the bottom-right corner.
-        6. Users can now chat with your bot directly on your site!
-
-        > ⚠️ Make sure your website allows external scripts if hosting backend separately.
+        1. Copy the code above.
+        2. Paste it **before the closing `</body>` tag** in your HTML.
+        3. Refresh your website. The chat widget for **{selected_bot_info['name']}** will appear.
         """)
     else:
         st.warning("API key not found for this bot.")
 
 # ---------------- MAIN APP ----------------
 def main():
-    tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots"])
+
+    tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots", "👤 Account", "👨‍💻 Meet Us"])
 
     with tabs[0]:
         create_and_save_bot()
@@ -353,7 +628,49 @@ def main():
         bot_management_ui()
     with tabs[2]:
         chat_interface()
-
+    with tabs[3]:
+        st.success(f"👋 Welcome, 👤{user.get('displayName', user.get('email', 'User'))}")
+        if st.button("🚪 Sign Out"):
+            st.session_state["user"] = None
+            cookies.delete("user_email")
+            cookies.delete("user_uid")
+            cookies.save()
+            st.rerun()
+    with tabs[4]:
+        st.header("👨‍💻 Meet the Mentesa Team")
+        st.markdown("---")
+        st.markdown("""
+        ### 🧠 About Mentesa  
+        Mentesa is a **no-code platform** that empowers anyone to create, manage, and chat with their own AI-powered bots.  
+        Our mission is to make generative AI accessible, personal, and fun.  
+        ### 👥 Our Team  
+           - **Mayur Koli** – Founder & Lead Developer  
+           - **Anirudh Kapurkar** – Frontend Developer  
+           - **Niharika Wagh** – Backend Developer & Research Associate  
+        We're constantly innovating to bring smarter, more personalized AI experiences to you.
+        """) 
+        st.markdown("---")
+        st.subheader("🌐 More About Us")    
+        st.markdown(
+            """
+            <a href="https://developer.mentesa.live/" target="_blank">
+                <button style="
+                    background-color: transparent;
+                    color: white;
+                    padding: 10px 18px;
+                    text-align: center;
+                    text-decoration: none;
+                    display: inline-block;
+                    font-size: 16px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                ">
+                    🚀 Team Mentesa
+                </button>
+            </a>
+            """,
+            unsafe_allow_html=True
+        )
+            
 if __name__ == "__main__":
     main()
-
