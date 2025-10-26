@@ -60,7 +60,7 @@
 const footer = document.createElement("div");
 footer.style.cssText =
     "background:rgb(14, 17, 23); padding:5px 0px; color:#fff; text-align:center; font-size:12px;";
-footer.innerHTML = `Powered by <a href="https://mentesa.live" target="_blank" style="color:cyan; text-decoration:none;"> Mentesa Family</a> | <a href="https://mentesav6.streamlit.app" target="_blank" style="color:cyan; text-decoration:none;">Privacy Policy</a>`;
+footer.innerHTML = `Powered by <a href="https://mentesa.live" target="_blank" style="color:cyan; text-decoration:none;"> Mentesa Family</a> | <a href="https://developer.mentesa.live" target="_blank" style="color:cyan; text-decoration:none;">Privacy Policy</a>`;
 
   inputBox.appendChild(input);
   inputBox.appendChild(sendBtn);
@@ -72,7 +72,7 @@ footer.innerHTML = `Powered by <a href="https://mentesa.live" target="_blank" st
 
   // --- Floating toggle button ---
   const toggleBtn = document.createElement("div");
-  toggleBtn.innerHTML = '<img src="logo.png" style="width:80%; height:80%; object-fit:cover; border-radius:50%;" alt="Mentesa logo">';
+  toggleBtn.innerHTML = '<img src="mentesa_logo.png" style="width:80%; height:80%; object-fit:cover; border-radius:50%;" alt="Mentesa logo">';
   toggleBtn.style.cssText = `
     position: fixed;
     bottom: 20px;
