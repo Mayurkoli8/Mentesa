@@ -72,7 +72,7 @@ footer.innerHTML = `Powered by <a href="https://mentesa.live" target="_blank" st
 
   // --- Floating toggle button ---
   const toggleBtn = document.createElement("div");
-  toggleBtn.innerHTML = '<img src="mentesa_logo.png" style="width:80%; height:80%; object-fit:cover; border-radius:50%;" alt="Mentesa logo">';
+  toggleBtn.innerHTML = "Ⓜ️";
   toggleBtn.style.cssText = `
     position: fixed;
     bottom: 20px;
