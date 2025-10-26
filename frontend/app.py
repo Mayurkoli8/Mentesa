@@ -22,12 +22,12 @@ from firebase_admin import firestore as fa_firestore
 from streamlit.components.v1 import html as components_html
 from utils.llm import generate_bot_config_gemini, chat_with_gemini
 
-BACKEND="https://mentesav8.onrender.com"
+BACKEND="https://mentesav7.onrender.com"
 
 from utils.file_handle import safe_text
 # --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="Mentesa V8",
+    page_title="Mentesa",
     page_icon="frontend/logo.png",
     layout="centered",
     initial_sidebar_state="expanded"
