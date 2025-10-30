@@ -1,94 +1,149 @@
-# Mentesa: A No-Code AI Bot Creation Platform for Everyone
+# Mentesa: Build & Deploy No‑Code AI Bots in Minutes
 
-**Mentesa** is an innovative no-code platform that enables users to create intelligent, personalized AI agents using just natural language. Powered by open-source LLMs like Mistral and Mixtral (via Ollama), Mentesa supports RAG, file-based learning, memory, and fine-tuning — all without writing a single line of code.
+**Mentesa** is a no‑code multi‑AI bot platform where anyone can create, deploy, and interact with custom AI agents — without writing code.
 
-## 🌐 Live 
+Designed for creators, founders, educators, and developers, Mentesa lets you build personal or business AI assistants powered by cutting‑edge open‑source LLMs, enhanced with memory, RAG, and multi‑persona support.
 
-🔗 [Mentesa on Streamlit](https://Mentesa.streamlit.app)
+## 🌐 Live Platform
 
-## 🌐 V4 
+🔗 [https://Mentesa.live](https://Mentesa.live)
 
-🔗 [Mentesa on Streamlit](https://Mentesa4.streamlit.app)
+🔗 [https://developer.Mentesa.live](https://developer.Mentesa.live)
 
-## ✨ New in Version $
+🔗 [https://mayurkoli.Mentesa.live](https://mayurkoli.Mentesa.live)
 
-- 📄 The bots created on mentesav4 can be implented on external website through simple step without hardcoding 
-- 🤖 Bots can be used on external website as assistant for the website
+---
 
-## ✨ Core Key Features
+## 🚀 What's New in **Version 7**
 
-- 🤖 Create bots using natural language
-- 📄 Upload PDFs, notes, and documents for contextual understanding
-- 🧠 Powered by open-source LLMs (via Ollama)
-- 🧷 Retrieval-Augmented Generation (RAG)
-- 💾 Long-term memory + Fine-tuning (LoRA support)
-- 📦 Export bot bundles for integration
-- ☁️ Cloud hosting & sharing of your bots
-    
-## 🧱 Tech Stack (Initial Plan)
+* 🌍 **Bots Anywhere** — Embed Mentesa AI bots on any website with 1‑line script
+* 💬 **Floating Website Chat Widget** — Add AI assistants to your site like Intercom / Crisp
+* ⚙️ **Multiple Model Support** — Gemini 2.5 pro and 2.0 Flash exp
+* 🧠 **Improved Memory Engine** — Persistent long‑term memory per bot
+* 📁 **Knowledge Uploads** — PDFs, docs, text, website links
+* 🎭 **Personality Profiles** — Create role‑based or persona‑based AI
 
-- **Frontend**: Streamlit (for MVP), later React
-- **Backend**: FastAPI (or Flask), Render
-- **LLMs**: Mistral / Mixtral (via Ollama)
-- **Vector DB**: FAISS or ChromaDB
-- **Embeddings**: SentenceTransformers
-- **File Parsing**: PyMuPDF / PyPDF2
-- **Storage**: Firebase / Firestore / Supabase
+---
 
+## ✨ Core Features
 
-## 📂 Suggested Folder Structure
-```bash
+* 🛠️ Create AI bots with natural language prompts
+* 📄 Upload docs + website text for knowledge
+* 🧠 Built‑in memory + contextual learning
+* 🔍 Retrieval‑Augmented Generation (RAG)
+* 🧩 Multi‑model: Gemini 2.5 pro and 2.0 Flash exp
+* 🌐 Embed bots on websites without coding
+* ☁️ Cloud bot storage & instant access
+* 🎒 Save, manage & chat with multiple bots
+
+---
+
+## 🧱 Tech Stack
+
+| Layer        | Tech                                             |
+| ------------ | ------------------------------------------------ |
+| Frontend     | AWS EC2 (Streamlit)                              |
+| Backend      | Render (FastAPI)                                 |
+| Models       | Google Gemini 2.5 pro and 2.0 Flash exp          |
+| Storage      | Firebase / Firestore                             |
+| Vector DB    | FAISS                                            |
+| URL Scrapping| BeautifulSoup                                    |
+| File Parsing | PyPDF2, PyMuPDF                                  |
+
+---
+
+## 📂 Folder Structure
+
+```
 Mentesa/
-├── frontend/ # UI (Streamlit or React)
-├── backend/ # FastAPI / Flask server
-├── llm_agents/ # Bot creation logic
-├── data/ # User files (PDFs, notes, etc.)
-├── utils/ # Helper modules (RAG, embeddings, etc.)
+├── .env
+├── .gitignore
+├── README.md
+├── backend/
+│   ├── __pycache__/
+│   │   └── main.cpython-313.pyc
+│   ├── main.py
+│   └── static/
+│       ├── embed.js
+│       ├── html.html
+│       └── mentesa_logo.png
+├── frontend/
+│   ├── .streamlit/
+│   │   └── secrets.toml
+│   ├── __init__.py
+│   ├── app.py
+│   ├── auth.py
+│   ├── cookies.py
+│   ├── logo.png
+│   └── ui.py
 ├── requirements.txt
-└── README.md
+└── utils/
+    ├── __init__.py
+    ├── file_handle.py
+    ├── firebase_config.py
+    ├── llm.py
+    └── scraper.py
+
 ```
 
-## 🚀 Getting Started
+---
 
-1. Clone the repo:
+## 🧪 Local Setup
+
 ```bash
 git clone https://github.com/Mayurkoli8/Mentesa.git
 cd mentesa
-git checkout v4
+git checkout v7
 ```
 
-## Importand when runing the app ofline on streamlit 
-1. Get a Google Gemini API key.
-2. Put it in .streamlit/secrets.toml OR in streamlit secrete as GEMINI_API_KEY.
+Add your Google Gemini API key to `.streamlit/secrets.toml`:
 
-## 📦 Installation
+```
+GEMINI_API_KEY="YOUR_KEY"
+```
+
+### Install
 
 ```bash
-git clone git clone https://github.com/Mayurkoli8/Mentesa.git
-git checkout v4
-cd mentesa
-pip install -r requirements.txt                                        
-streamlit frontend/run app.py
-cd backend
-uvicorn main:app --reload   
+pip install -r requirements.txt
 ```
-⚙️ Requirements (requirements.txt)
-streamlit
 
-**Download Ollama + Mistral to run the app**
+### Run Frontend
 
-📄 License
-No License Yet
+```bash
+streamlit run frontend/app.py
+```
 
-🤝 Contributing
-Fork the repository
+### Run Backend
 
-Create a feature branch (git checkout -b feature/my-feature)
+```bash
+cd backend
+uvicorn main:app --reload
+```
+---
 
-Commit your changes (git commit -m 'Add something')
+## 📦 Deployment
 
-Push and create a pull request
+* ✅ AWS EC2 Cloud for UI 
+* ✅ Render / Railway for backend
+* ✅ Firebase for storage and Authentication
 
-📬 Contact
-Name: Mayur Koli 
-Email: kolimohit9595@gmail.com
+---
+
+## 🧑‍💻 Contributing
+
+```
+Fork → Create Branch → Commit → PR
+```
+
+---
+
+## 📬 Contact
+
+**Founder:** Mayur Koli
+📧 [kolimohit9595@gmail.com](mailto:kolimohit9595@gmail.com)
+🌐 [https://mayurkoli.Mentesa.live](https://mayurkoli.Mentesa.live)
+
+---
+
+> Build AI assistants, not just chatbots. Mentesa lets everyone create AI that works *for* them.
