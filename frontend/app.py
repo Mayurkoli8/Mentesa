@@ -525,6 +525,7 @@ def bot_management_ui():
                 st.session_state[success_flag] = True
 
                 st.success(f"✅ '{filename}' uploaded successfully!")
+                st.rerun()
 
             except Exception as e:
                 st.error(f"Upload failed: {type(e).__name__}: {e}")
