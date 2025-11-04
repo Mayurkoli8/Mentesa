@@ -61,16 +61,9 @@ streamlit
 **Download Ollama + Mistral to run the app**
 
 📄 License
-No License Yet
+This project is copyrighted & not open for reuse or modification.
+Contact me for permissions.
 
-🤝 Contributing
-Fork the repository
-
-Create a feature branch (git checkout -b feature/my-feature)
-
-Commit your changes (git commit -m 'Add something')
-
-Push and create a pull request
 
 📬 Contact
 Name: Mayur Koli 
