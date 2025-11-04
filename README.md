@@ -4,7 +4,7 @@
 
 ## 🌐 Live 
 
-🔗 [Mentesa on Streamlit](https://Mentesa.streamlit.app)
+🔗 [Mentesa.live](https://Mentesa.live)
 
 
 ## ✨ Key Features
