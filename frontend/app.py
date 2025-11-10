@@ -631,10 +631,10 @@ def main():
         chat_interface()
     with tabs[3]:
         try:
-            user
+            users
         except NameError:
-            user = None
-        username = user.get("displayName", user.get("email", "User")) if user else "User"
+            users = None
+        username = users.get("displayName", users.get("email", "User")) if users else "User"
         st.success(f"👋 Welcome, 👤{username}")
         if st.button("🚪 Sign Out"):
             st.session_state["user"] = None
