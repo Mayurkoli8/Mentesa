@@ -680,65 +680,72 @@ def main():
     with tabs[5]:
         st.header("📱 Connect WhatsApp to Your Bot")
         st.markdown("---")
-    
+
         user = st.session_state.get("user") or {}
         owner_uid = user.get("uid")
         owner_email = user.get("email")
-    
+
         if not owner_uid or not owner_email:
             st.error("User not found. Please sign in again.")
             st.stop()
-    
+
         # Load user's bots
         bots = load_user_bots()
         if not bots:
             st.info("You have no bots yet. Create a bot first.")
             st.stop()
-    
+
         # -------------------------
-        # Step 1 — Enter phone number
+        # Step 1 — Enter Phone Number ID
         # -------------------------
-        st.subheader("Step 1 — Enter Your WhatsApp Business Number")
-    
-        phone_number = st.text_input(
-            "WhatsApp Business Number (E.164 format)",
-            placeholder="+919876543210"
+        st.subheader("Step 1 — Enter Phone Number ID (from Meta Dashboard)")
+
+        phone_number_id = st.text_input(
+            "WhatsApp Phone Number ID",
+            placeholder="854485194419931"
         )
-    
+
         if st.button("📩 Send OTP"):
-            if not phone_number.strip():
-                st.warning("Enter phone number first.")
+            if not phone_number_id.strip():
+                st.warning("Enter Phone Number ID first.")
                 st.stop()
-    
+
             try:
                 r = requests.post(
                     f"{BACKEND}/wa/register",
-                    json={"phone_number": phone_number.strip()}
+                    json={
+                        "phone_number_id": phone_number_id.strip(),
+                        "method": "whatsapp"
+                    }
                 )
                 if r.status_code == 200:
                     st.success("✅ OTP sent to your WhatsApp!")
-                    st.session_state["wa_phone"] = phone_number.strip()
+                    st.session_state["wa_phone_id"] = phone_number_id.strip()
                 else:
                     st.error(r.text)
             except Exception as e:
-                st.error(e)
-    
+                st.error(str(e))
+
         # -------------------------
         # Step 2 — Verify OTP
         # -------------------------
-        if "wa_phone" in st.session_state:
-            st.subheader("Step 2 — Enter OTP")
+        if "wa_phone_id" in st.session_state:
+            st.subheader("Step 2 — Enter OTP from WhatsApp")
+
             otp = st.text_input("OTP", placeholder="123456")
-    
+
             if st.button("✅ Verify OTP"):
                 if not otp.strip():
                     st.warning("Enter OTP.")
                     st.stop()
-    
+
                 try:
                     r = requests.post(
                         f"{BACKEND}/wa/verify_otp",
-                        json={"phone_number": st.session_state["wa_phone"], "code": otp.strip()}
+                        json={
+                            "phone_number_id": st.session_state["wa_phone_id"],
+                            "code": otp.strip()
+                        }
                     )
                     if r.status_code == 200:
                         data = r.json()
@@ -748,42 +755,44 @@ def main():
                     else:
                         st.error(r.text)
                 except Exception as e:
-                    st.error(e)
-    
+                    st.error(str(e))
+
         # -------------------------
-        # Step 3 — Select bot + Connect
+        # Step 3 — Select Bot + Connect
         # -------------------------
         if "verified_phone_id" in st.session_state:
-            st.subheader("Step 3 — Select Bot")
-    
+            st.subheader("Step 3 — Select Bot to Connect")
+
             selected_bot = st.selectbox(
                 "Choose bot",
                 options=bots,
                 format_func=lambda b: f"{b.get('name')} ({b.get('id')[:6]})"
             )
-            bot_id = selected_bot["id"]
-    
-            # Fetch the bot's API key
-            r = requests.get(f"{BACKEND}/bots/{bot_id}/apikey")
-            api_key = r.json().get("api_key")
-    
-            if st.button("🔗 Connect WhatsApp to Bot"):
-                payload = {
-                    "phone_number_id": st.session_state["verified_phone_id"],
-                    "api_key": api_key,
-                    "bot_id": bot_id,
-                    "owner_uid": owner_uid,
-                    "owner_email": owner_email,
-                }
-    
-                r = requests.post(f"{BACKEND}/whatsapp/connect", json=payload)
-    
-                if r.status_code == 200:
-                    st.success("✅ WhatsApp connected successfully!")
-                    st.json(r.json())
-                else:
-                    st.error(r.text)
-    
-            
+
+            if selected_bot:
+                bot_id = selected_bot["id"]
+
+                # Fetch bot API key
+                r = requests.get(f"{BACKEND}/bots/{bot_id}/apikey")
+                api_key = r.json().get("api_key")
+
+                if st.button("🔗 Connect WhatsApp to Bot"):
+                    payload = {
+                        "phone_number_id": st.session_state["verified_phone_id"],
+                        "api_key": api_key,
+                        "bot_id": bot_id,
+                        "owner_uid": owner_uid,
+                        "owner_email": owner_email,
+                    }
+
+                    r = requests.post(f"{BACKEND}/whatsapp/connect", json=payload)
+
+                    if r.status_code == 200:
+                        st.success("✅ WhatsApp connected successfully!")
+                        st.json(r.json())
+                    else:
+                        st.error(r.text)
+
+
 if __name__ == "__main__":
     main()
