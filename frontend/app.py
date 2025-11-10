@@ -630,7 +630,7 @@ def main():
     with tabs[2]:
         chat_interface()
     with tabs[3]:
-        st.success(f"👋 Welcome bro how again, 👤{user.get('displayName', user.get('email', 'User'))}")
+        st.success(f"👋 Welcome bro how again again, 👤{user.get('displayName', user.get('email', 'User'))}")
         if st.button("🚪 Sign Out"):
             st.session_state["user"] = None
             cookies.delete("user_email")
