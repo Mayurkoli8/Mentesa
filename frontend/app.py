@@ -678,6 +678,11 @@ def main():
             unsafe_allow_html=True
         )
     with tabs[5]:
+        # ✅ RESET OTP STATE (forces fresh Step 3 flow)
+        for key in ["wa_phone", "verified_phone_id"]:
+            if key in st.session_state:
+                del st.session_state[key]
+        
         st.header("📱 Connect WhatsApp to Your Bot")
         st.markdown("---")
 
