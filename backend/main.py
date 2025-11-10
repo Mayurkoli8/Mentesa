@@ -567,18 +567,18 @@ def connect_whatsapp(payload: dict):
 def wa_register(payload: dict):
     import requests
 
-    phone_number = payload.get("phone_number")
-    if not phone_number:
-        raise HTTPException(400, "phone_number required")
+    phone_number_id = payload.get("phone_number_id")
+    method = payload.get("method", "sms")  # or "whatsapp"
 
-    WABA_ID = "1749038842451120"  # your WABA ID
+    if not phone_number_id:
+        raise HTTPException(400, "phone_number_id required")
+
     SYSTEM_USER_TOKEN = os.getenv("META_SYSTEM_USER_TOKEN")
 
-    url = f"https://graph.facebook.com/v20.0/{WABA_ID}/phone_numbers/register"
+    url = f"https://graph.facebook.com/v20.0/{phone_number_id}/request_code"
 
     data = {
-        "phone_number": phone_number,
-        "method": "whatsapp",
+        "code_method": method  # sms or whatsapp
     }
 
     headers = {
@@ -586,28 +586,27 @@ def wa_register(payload: dict):
     }
 
     r = requests.post(url, data=data, headers=headers)
+
     if r.status_code != 200:
         raise HTTPException(500, f"Meta Error: {r.text}")
 
-    return {"status": "otp_sent", "phone_number": phone_number}
+    return {"status": "otp_sent", "phone_number_id": phone_number_id}
 
 @app.post("/wa/verify_otp")
 def wa_verify_otp(payload: dict):
     import requests
 
-    phone_number = payload.get("phone_number")
+    phone_number_id = payload.get("phone_number_id")
     code = payload.get("code")
 
-    if not phone_number or not code:
-        raise HTTPException(400, "phone_number and code required")
+    if not phone_number_id or not code:
+        raise HTTPException(400, "phone_number_id and code required")
 
-    WABA_ID = "1749038842451120"
     SYSTEM_USER_TOKEN = os.getenv("META_SYSTEM_USER_TOKEN")
 
-    url = f"https://graph.facebook.com/v20.0/{WABA_ID}/phone_numbers/verify"
+    url = f"https://graph.facebook.com/v20.0/{phone_number_id}/verify_code"
 
     data = {
-        "phone_number": phone_number,
         "code": code
     }
 
@@ -620,30 +619,4 @@ def wa_verify_otp(payload: dict):
     if r.status_code != 200:
         raise HTTPException(500, f"Meta Error: {r.text}")
 
-    result = r.json()
-
-    """
-    result looks like:
-
-    {
-      "success": true,
-      "verified_name": "...",
-      "display_phone_number": "+91xxxx",
-      "phone_number_id": "123456789012345",
-      "certificate": "abc..."
-    }
-    """
-
-    # ✅ save phone_number_id & certificate
-    db.collection("wa_verified_numbers").document(result["phone_number_id"]).set({
-        "phone_number": phone_number,
-        "display_phone_number": result.get("display_phone_number"),
-        "certificate": result.get("certificate"),
-    })
-
-    return {
-        "status": "verified",
-        "phone_number_id": result["phone_number_id"],
-        "display_phone_number": result.get("display_phone_number"),
-        "certificate": result.get("certificate")
-    }
+    return {"status": "verified", "phone_number_id": phone_number_id}

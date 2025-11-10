@@ -689,105 +689,101 @@ def main():
             st.error("User not found. Please sign in again.")
             st.stop()
     
-        st.subheader("Step 1 — Register Your Phone Number")
-        st.write("""
-        Enter your **normal WhatsApp Business number** below.
-        We will send an OTP through Meta.
-        """)
+        # Load user's bots
+        bots = load_user_bots()
+        if not bots:
+            st.info("You have no bots yet. Create a bot first.")
+            st.stop()
     
-        phone_number = st.text_input("Your WhatsApp Phone Number (+91…)", placeholder="+91XXXXXXXXXX")
+        # -------------------------
+        # Step 1 — Enter phone number
+        # -------------------------
+        st.subheader("Step 1 — Enter Your WhatsApp Business Number")
+    
+        phone_number = st.text_input(
+            "WhatsApp Business Number (E.164 format)",
+            placeholder="+919876543210"
+        )
     
         if st.button("📩 Send OTP"):
             if not phone_number.strip():
                 st.warning("Enter phone number first.")
                 st.stop()
+    
             try:
-                r = requests.post(f"{BACKEND}/wa/register", json={"phone_number": phone_number})
+                r = requests.post(
+                    f"{BACKEND}/wa/register",
+                    json={"phone_number": phone_number.strip()}
+                )
                 if r.status_code == 200:
-                    st.success("OTP sent! Check your SMS messages.")
-                    st.session_state['pending_phone'] = phone_number
+                    st.success("✅ OTP sent to your WhatsApp!")
+                    st.session_state["wa_phone"] = phone_number.strip()
                 else:
                     st.error(r.text)
             except Exception as e:
-                st.error(f"Failed: {e}")
+                st.error(e)
     
-        st.markdown("---")
+        # -------------------------
+        # Step 2 — Verify OTP
+        # -------------------------
+        if "wa_phone" in st.session_state:
+            st.subheader("Step 2 — Enter OTP")
+            otp = st.text_input("OTP", placeholder="123456")
     
-        st.subheader("Step 2 — Verify OTP")
-        otp = st.text_input("Enter OTP")
+            if st.button("✅ Verify OTP"):
+                if not otp.strip():
+                    st.warning("Enter OTP.")
+                    st.stop()
     
-        if st.button("✅ Verify"):
-            if "pending_phone" not in st.session_state:
-                st.warning("Send OTP first.")
-                st.stop()
+                try:
+                    r = requests.post(
+                        f"{BACKEND}/wa/verify_otp",
+                        json={"phone_number": st.session_state["wa_phone"], "code": otp.strip()}
+                    )
+                    if r.status_code == 200:
+                        data = r.json()
+                        st.session_state["verified_phone_id"] = data["phone_number_id"]
+                        st.success("✅ Number verified!")
+                        st.write(f"**Phone Number ID:** {data['phone_number_id']}")
+                    else:
+                        st.error(r.text)
+                except Exception as e:
+                    st.error(e)
     
-            payload = {
-                "phone_number": st.session_state['pending_phone'],
-                "code": otp.strip()
-            }
+        # -------------------------
+        # Step 3 — Select bot + Connect
+        # -------------------------
+        if "verified_phone_id" in st.session_state:
+            st.subheader("Step 3 — Select Bot")
     
-            try:
-                r = requests.post(f"{BACKEND}/wa/verify_otp", json=payload)
-                if r.status_code == 200:
-                    data = r.json()
-                    st.success("✅ Phone Verified!")
-                    st.json(data)
-                    st.session_state['verified_phone_id'] = data["phone_number_id"]
-                else:
-                    st.error(r.text)
-            except Exception as e:
-                st.error(f"Failed: {e}")
-    
-        st.markdown("---")
-    
-        st.subheader("Step 3 — Link Bot to Verified Number")
-    
-        # Load user's bots
-        try:
-            bots = load_user_bots()
-        except:
-            bots = []
-    
-        if not bots:
-            st.info("You have no bots yet. Create one first.")
-            st.stop()
-    
-        selected_bot = st.selectbox(
-            "Select bot to connect",
-            options=bots,
-            format_func=lambda b: f"{b.get('name')} ({b.get('id')[:6]})"
-        )
-    
-        if st.button("🔗 Connect Bot"):
-            if "verified_phone_id" not in st.session_state:
-                st.warning("Verify your phone number first.")
-                st.stop()
-    
+            selected_bot = st.selectbox(
+                "Choose bot",
+                options=bots,
+                format_func=lambda b: f"{b.get('name')} ({b.get('id')[:6]})"
+            )
             bot_id = selected_bot["id"]
     
-            # fetch bot API key
+            # Fetch the bot's API key
             r = requests.get(f"{BACKEND}/bots/{bot_id}/apikey")
             api_key = r.json().get("api_key")
     
-            payload = {
-                "phone_number_id": st.session_state['verified_phone_id'],
-                "api_key": api_key,
-                "bot_id": bot_id,
-                "owner_uid": owner_uid,
-                "owner_email": owner_email,
-            }
+            if st.button("🔗 Connect WhatsApp to Bot"):
+                payload = {
+                    "phone_number_id": st.session_state["verified_phone_id"],
+                    "api_key": api_key,
+                    "bot_id": bot_id,
+                    "owner_uid": owner_uid,
+                    "owner_email": owner_email,
+                }
     
-            try:
-                resp = requests.post(f"{BACKEND}/whatsapp/connect", json=payload)
-                if resp.status_code == 200:
-                    st.success("✅ Bot connected successfully!")
-                    st.json(resp.json())
+                r = requests.post(f"{BACKEND}/whatsapp/connect", json=payload)
+    
+                if r.status_code == 200:
+                    st.success("✅ WhatsApp connected successfully!")
+                    st.json(r.json())
                 else:
-                    st.error(resp.text)
-            except Exception as e:
-                st.error(f"Failed: {e}")
+                    st.error(r.text)
     
-        
             
 if __name__ == "__main__":
     main()
