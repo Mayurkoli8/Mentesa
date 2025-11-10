@@ -672,101 +672,101 @@ def main():
             """,
             unsafe_allow_html=True
         )
-        with tabs[5]:
-            st.header("📱 Connect WhatsApp to Your Bot")
-            st.markdown("---")
-        
-            user = st.session_state.get("user") or {}
-            owner_uid = user.get("uid")
-            owner_email = user.get("email")
-        
-            if not owner_uid or not owner_email:
-                st.error("User not found. Please sign in again.")
+    with tabs[5]:
+        st.header("📱 Connect WhatsApp to Your Bot")
+        st.markdown("---")
+    
+        user = st.session_state.get("user") or {}
+        owner_uid = user.get("uid")
+        owner_email = user.get("email")
+    
+        if not owner_uid or not owner_email:
+            st.error("User not found. Please sign in again.")
+            st.stop()
+    
+        # Load user's bots
+        try:
+            bots = load_user_bots()
+        except Exception as e:
+            st.error(f"Failed to load bots: {e}")
+            st.stop()
+    
+        if not bots:
+            st.info("You have no bots yet. Create a bot first.")
+            st.stop()
+    
+        st.subheader("Step 1 — Get Your Phone Number ID")
+        st.write("""
+        1. Go to **Meta Developer Dashboard → WhatsApp → API Setup**  
+        2. Find: **Phone Number ID**  
+        3. Copy it and paste below  
+        """)
+    
+        phone_number_id = st.text_input("📞 Phone Number ID", placeholder="e.g. 123456789")
+    
+        st.subheader("Step 2 — Choose Your Bot")
+        selected_bot = st.selectbox(
+            "Select bot",
+            options=bots,
+            format_func=lambda b: f"{b.get('name')} ({b.get('id')[:6]})"
+        )
+    
+        if not selected_bot:
+            st.stop()
+    
+        bot_id = selected_bot["id"]
+    
+        # Fetch bot API key from backend
+        r = requests.get(f"{BACKEND}/bots/{bot_id}/apikey")
+        if r.status_code != 200:
+            st.error(f"Cannot fetch API key: {r.text}")
+            st.stop()
+    
+        api_key = r.json().get("api_key")
+    
+        st.subheader("Step 3 — Connect")
+        st.write("Press connect to link this bot with your WhatsApp number.")
+    
+        if st.button("✅ Connect WhatsApp"):
+            if not phone_number_id.strip():
+                st.warning("Enter Phone Number ID first.")
                 st.stop()
-        
-            # Load user's bots
+    
+            payload = {
+                "phone_number_id": phone_number_id.strip(),
+                "api_key": api_key,
+                "bot_id": bot_id,
+                "owner_uid": owner_uid,
+                "owner_email": owner_email,
+            }
+    
             try:
-                bots = load_user_bots()
+                resp = requests.post(f"{BACKEND}/whatsapp/connect", json=payload)
             except Exception as e:
-                st.error(f"Failed to load bots: {e}")
+                st.error(f"Connection failed: {e}")
                 st.stop()
-        
-            if not bots:
-                st.info("You have no bots yet. Create a bot first.")
-                st.stop()
-        
-            st.subheader("Step 1 — Get Your Phone Number ID")
-            st.write("""
-            1. Go to **Meta Developer Dashboard → WhatsApp → API Setup**  
-            2. Find: **Phone Number ID**  
-            3. Copy it and paste below  
-            """)
-        
-            phone_number_id = st.text_input("📞 Phone Number ID", placeholder="e.g. 123456789")
-        
-            st.subheader("Step 2 — Choose Your Bot")
-            selected_bot = st.selectbox(
-                "Select bot",
-                options=bots,
-                format_func=lambda b: f"{b.get('name')} ({b.get('id')[:6]})"
-            )
-        
-            if not selected_bot:
-                st.stop()
-        
-            bot_id = selected_bot["id"]
-        
-            # Fetch bot API key from backend
-            r = requests.get(f"{BACKEND}/bots/{bot_id}/apikey")
-            if r.status_code != 200:
-                st.error(f"Cannot fetch API key: {r.text}")
-                st.stop()
-        
-            api_key = r.json().get("api_key")
-        
-            st.subheader("Step 3 — Connect")
-            st.write("Press connect to link this bot with your WhatsApp number.")
-        
-            if st.button("✅ Connect WhatsApp"):
-                if not phone_number_id.strip():
-                    st.warning("Enter Phone Number ID first.")
-                    st.stop()
-        
-                payload = {
-                    "phone_number_id": phone_number_id.strip(),
-                    "api_key": api_key,
-                    "bot_id": bot_id,
-                    "owner_uid": owner_uid,
-                    "owner_email": owner_email,
-                }
-        
-                try:
-                    resp = requests.post(f"{BACKEND}/whatsapp/connect", json=payload)
-                except Exception as e:
-                    st.error(f"Connection failed: {e}")
-                    st.stop()
-        
-                if resp.status_code == 200:
-                    st.success("✅ WhatsApp connected successfully!")
-                    st.json(resp.json())
-                else:
-                    st.error(f"❌ Failed: {resp.text}")
-        
-            st.markdown("---")
-            st.subheader("Connected Numbers")
-        
-            # Show already connected routes
-            try:
-                routes = db.collection("wa_routes").stream()
-                for doc in routes:
-                    data = doc.to_dict()
-                    if data.get("owner_uid") == owner_uid:
-                        st.write(f"• **Phone Number ID:** {data['phone_number_id']}")
-                        st.write(f"  Bot: {data.get('bot_id')}")
-                        st.write("---")
-            except:
-                st.info("No connected WhatsApp numbers yet.")
-        
+    
+            if resp.status_code == 200:
+                st.success("✅ WhatsApp connected successfully!")
+                st.json(resp.json())
+            else:
+                st.error(f"❌ Failed: {resp.text}")
+    
+        st.markdown("---")
+        st.subheader("Connected Numbers")
+    
+        # Show already connected routes
+        try:
+            routes = db.collection("wa_routes").stream()
+            for doc in routes:
+                data = doc.to_dict()
+                if data.get("owner_uid") == owner_uid:
+                    st.write(f"• **Phone Number ID:** {data['phone_number_id']}")
+                    st.write(f"  Bot: {data.get('bot_id')}")
+                    st.write("---")
+        except:
+            st.info("No connected WhatsApp numbers yet.")
+    
         
             
 if __name__ == "__main__":
