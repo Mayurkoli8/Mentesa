@@ -578,8 +578,10 @@ def wa_register(payload: dict):
     url = f"https://graph.facebook.com/v20.0/{phone_number_id}/request_code"
 
     data = {
-        "code_method": method  # sms or whatsapp
+        "code_method": method.upper(),   # SMS or VOICE
+        "language": "en"                 # REQUIRED by Meta
     }
+    
 
     headers = {
         "Authorization": f"Bearer {SYSTEM_USER_TOKEN}",
