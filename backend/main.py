@@ -537,3 +537,27 @@ def auth_get_session(session_id: Optional[str] = None):
         raise HTTPException(status_code=404, detail="Session not found")
     # return user data
     return {"user": {"uid": s.get("uid"), "email": s.get("email"), "displayName": s.get("displayName")}}
+
+@app.post("/whatsapp/connect")
+def connect_whatsapp(payload: dict):
+    phone_number_id = payload.get("phone_number_id")
+    api_key = payload.get("api_key")
+    bot_id = payload.get("bot_id")
+    owner_uid = payload.get("owner_uid")
+    owner_email = payload.get("owner_email")
+
+    if not phone_number_id or not api_key:
+        raise HTTPException(400, "phone_number_id and api_key required")
+
+    data = {
+        "phone_number_id": phone_number_id,
+        "api_key": api_key,
+        "bot_id": bot_id,
+        "owner_uid": owner_uid,
+        "owner_email": owner_email,
+        "connected_at": datetime.utcnow().isoformat(),
+    }
+
+    db.collection("wa_routes").document(phone_number_id).set(data)
+
+    return {"status": "connected", "route": data}
