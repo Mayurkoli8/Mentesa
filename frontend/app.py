@@ -698,12 +698,14 @@ def main():
         # -------------------------
         # Step 1 — Enter Phone Number ID
         # -------------------------
-        st.subheader("Step 1 — Enter Phone Number ID (from Meta Dashboard)")
+        st.subheader("Step 1 — Enter Your Phone Number ID")
 
         phone_number_id = st.text_input(
-            "WhatsApp Phone Number ID",
+            "Phone Number ID",
             placeholder="854485194419931"
         )
+
+        method = st.selectbox("OTP Method", ["sms"])
 
         if st.button("📩 Send OTP"):
             if not phone_number_id.strip():
@@ -713,29 +715,26 @@ def main():
             try:
                 r = requests.post(
                     f"{BACKEND}/wa/register",
-                    json={
-                        "phone_number_id": phone_number_id.strip(),
-                        "method": "whatsapp"
-                    }
+                    json={"phone_number_id": phone_number_id.strip(), "method": method}
                 )
                 if r.status_code == 200:
-                    st.success("✅ OTP sent to your WhatsApp!")
+                    st.success("✅ OTP sent!")
                     st.session_state["wa_phone_id"] = phone_number_id.strip()
                 else:
                     st.error(r.text)
             except Exception as e:
-                st.error(str(e))
+                st.error(e)
+
 
         # -------------------------
         # Step 2 — Verify OTP
         # -------------------------
         if "wa_phone_id" in st.session_state:
-            st.subheader("Step 2 — Enter OTP from WhatsApp")
-
-            otp = st.text_input("OTP", placeholder="123456")
+            st.subheader("Step 2 — Verify OTP")
+            code = st.text_input("OTP Code", placeholder="123456")
 
             if st.button("✅ Verify OTP"):
-                if not otp.strip():
+                if not code.strip():
                     st.warning("Enter OTP.")
                     st.stop()
 
@@ -744,18 +743,17 @@ def main():
                         f"{BACKEND}/wa/verify_otp",
                         json={
                             "phone_number_id": st.session_state["wa_phone_id"],
-                            "code": otp.strip()
+                            "code": code.strip()
                         }
                     )
                     if r.status_code == 200:
-                        data = r.json()
-                        st.session_state["verified_phone_id"] = data["phone_number_id"]
-                        st.success("✅ Number verified!")
-                        st.write(f"**Phone Number ID:** {data['phone_number_id']}")
+                        st.success("✅ Number verified successfully!")
+                        st.session_state["verified_phone_id"] = st.session_state["wa_phone_id"]
                     else:
                         st.error(r.text)
                 except Exception as e:
-                    st.error(str(e))
+                    st.error(e)
+
 
         # -------------------------
         # Step 3 — Select Bot + Connect
