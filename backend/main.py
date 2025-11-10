@@ -538,6 +538,7 @@ def auth_get_session(session_id: Optional[str] = None):
     # return user data
     return {"user": {"uid": s.get("uid"), "email": s.get("email"), "displayName": s.get("displayName")}}
 
+
 @app.post("/whatsapp/connect")
 def connect_whatsapp(payload: dict):
     phone_number_id = payload.get("phone_number_id")
@@ -561,3 +562,31 @@ def connect_whatsapp(payload: dict):
     db.collection("wa_routes").document(phone_number_id).set(data)
 
     return {"status": "connected", "route": data}
+
+@app.post("/wa/register")
+def wa_register(payload: dict):
+    import requests
+
+    phone_number = payload.get("phone_number")
+    if not phone_number:
+        raise HTTPException(400, "phone_number required")
+
+    WABA_ID = "1749038842451120"  # your WABA ID
+    SYSTEM_USER_TOKEN = os.getenv("META_SYSTEM_USER_TOKEN")
+
+    url = f"https://graph.facebook.com/v20.0/{WABA_ID}/phone_numbers/register"
+
+    data = {
+        "phone_number": phone_number,
+        "method": "whatsapp",
+    }
+
+    headers = {
+        "Authorization": f"Bearer {SYSTEM_USER_TOKEN}",
+    }
+
+    r = requests.post(url, data=data, headers=headers)
+    if r.status_code != 200:
+        raise HTTPException(500, f"Meta Error: {r.text}")
+
+    return {"status": "otp_sent", "phone_number": phone_number}

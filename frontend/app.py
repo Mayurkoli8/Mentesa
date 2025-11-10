@@ -621,7 +621,7 @@ def bot_management_ui():
 # ---------------- MAIN APP ----------------
 def main():
 
-    tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots", "👤 Account", "👨‍💻 Meet Us", "📱 WhatsApp jai ho Integration"])
+    tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots", "👤 Account", "👨‍💻 Meet Us", "📱 WhatsApp Integration"])
 
     with tabs[0]:
         create_and_save_bot()
@@ -631,10 +631,10 @@ def main():
         chat_interface()
     with tabs[3]:
         try:
-            users
+            user
         except NameError:
-            users = None
-        username = users.get("displayName", users.get("email", "User")) if users else "User"
+            user = None
+        username = user.get("displayName", user.get("email", "User")) if user else "User"
         st.success(f"👋 Welcome, 👤{username}")
         if st.button("🚪 Sign Out"):
             st.session_state["user"] = None
