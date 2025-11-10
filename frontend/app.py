@@ -621,7 +621,7 @@ def bot_management_ui():
 # ---------------- MAIN APP ----------------
 def main():
 
-    tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots", "👤 Account", "👨‍💻 Meet Us", "📱 WhatsApp Integration"])
+    tabs = st.tabs(["➕ Create Bot", "🛠️ Manage Bots", "💬 My Bots", "👤 Account", "👨‍💻 Meet Us", "📱 WhatsbhhdfdhbApp Integration"])
 
     with tabs[0]:
         create_and_save_bot()
