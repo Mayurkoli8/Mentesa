@@ -229,7 +229,7 @@ def create_bot(bot: BotCreate):
     # Call Gemini to build bot config
     # ----------------------
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-2.5-pro")
+    model = genai.GenerativeModel("gemini-2.5-flash")
 
     if site_text.strip():
         prompt_text = f"""
@@ -458,7 +458,7 @@ def chat(req: ChatRequest,
 
     # 6️⃣ Generate response
     try:
-        model = genai.GenerativeModel("gemini-2.5-pro")
+        model = genai.GenerativeModel("gemini-2.5-flash")
         response = model.generate_content(prompt)
 
         reply_text = "I couldn't generate a reply."
@@ -537,3 +537,55 @@ def auth_get_session(session_id: Optional[str] = None):
         raise HTTPException(status_code=404, detail="Session not found")
     # return user data
     return {"user": {"uid": s.get("uid"), "email": s.get("email"), "displayName": s.get("displayName")}}
+
+@app.post("/auth/register")
+def auth_register(payload: Dict[str, str]):
+    """
+    Body: { "email": "...", "password": "...", "display_name": "..." }
+    """
+    email = payload.get("email")
+    password = payload.get("password")
+    display_name = payload.get("display_name")
+    
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="email and password required")
+
+    try:
+        # Check if user exists
+        try:
+            admin_auth.get_user_by_email(email)
+            raise HTTPException(status_code=400, detail="User already exists")
+        except admin_auth.UserNotFoundError:
+            pass
+        
+        # Create user
+        user = admin_auth.create_user(email=email, password=password, display_name=display_name)
+        
+        # Sign in to get ID token (needed for verification email)
+        signin = _rest_post("accounts:signInWithPassword", {"email": email, "password": password, "returnSecureToken": True})
+        id_token = signin.get("idToken")
+        
+        # Send verification email
+        if id_token:
+            _rest_post("accounts:sendOobCode", {"requestType": "VERIFY_EMAIL", "idToken": id_token})
+            
+        return {"message": "User created. Verification email sent."}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/bots/{bot_id}/history")
+def get_chat_history(bot_id: str):
+    doc = db.collection("bot_chats").document(bot_id).get()
+    if doc.exists:
+        return doc.to_dict().get("history", [])
+    return []
+
+@app.post("/bots/{bot_id}/history")
+def save_chat_history(bot_id: str, payload: Dict[str, Any]):
+    # payload: { "history": [...] }
+    history = payload.get("history", [])
+    db.collection("bot_chats").document(bot_id).set({"history": history})
+    return {"status": "ok"}

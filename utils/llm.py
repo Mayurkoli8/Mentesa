@@ -14,7 +14,7 @@ if not api_key:
 # Configure Gemini client
 genai.configure(api_key=api_key)
 
-MODEL_NAME = "models/gemini-2.5-pro"
+MODEL_NAME = "models/gemini-2.5-flash"
 model = genai.GenerativeModel(model_name=MODEL_NAME, generation_config={"temperature": 0.7})
 
 def generate_bot_config_gemini(prompt):
