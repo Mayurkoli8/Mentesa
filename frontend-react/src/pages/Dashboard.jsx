@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { Edit2, Trash2 } from 'lucide-react';
+import { Trash2, MessageSquare, Settings2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Dashboard = () => {
@@ -83,11 +83,19 @@ const Dashboard = () => {
 
                                 <div className="flex items-center gap-2">
                                     <Link
+                                        to={`/bot/${bot.id}`}
+                                        className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                                        title="Manage (API key, embed, knowledge)"
+                                    >
+                                        <Settings2 size={18} className="text-gray-400" />
+                                    </Link>
+
+                                    <Link
                                         to={`/chat/${bot.id}`}
                                         className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                                         title="Chat"
                                     >
-                                        <Edit2 size={18} className="text-gray-400" />
+                                        <MessageSquare size={18} className="text-gray-400" />
                                     </Link>
 
                                     <button

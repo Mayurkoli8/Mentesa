@@ -1,21 +1,29 @@
-streamlit
-google-generativeai
-pandas
-numpy
-pyyaml
-requests
+# --- API / server ---
 fastapi
 uvicorn[standard]
 pydantic
 python-dotenv
+python-multipart
+
+# --- LLM providers ---
+groq
+google-generativeai
+
+# --- Billing ---
+stripe
+
+# --- Data / Firebase ---
 firebase-admin
+google-auth
+requests
+
+# --- Scraping & file parsing ---
 beautifulsoup4
 readability-lxml
 python-docx
-python-multipart
 PyPDF2
-datetime
-google-auth
-pyrebase4
-streamlit-cookies-manager
 
+# --- Misc ---
+pandas
+numpy
+pyyaml

@@ -1,0 +1,42 @@
+# Render deployment for the Mentesa FastAPI backend.
+# Create a new "Blueprint" service in Render pointing at this repo.
+services:
+  - type: web
+    name: mentesa-backend
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /
+    envVars:
+      - key: LLM_PROVIDER
+        value: groq
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: EMBED_PROVIDER
+        value: gemini
+      - key: EMBED_MODEL
+        value: models/gemini-embedding-001
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: SESSION_TTL_DAYS
+        value: "30"
+      # Set these as secret env vars in the Render dashboard:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: FIREBASE_API_KEY
+        sync: false
+      - key: SERVICE_ACCOUNT_JSON_B64
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_PRO
+        sync: false
+      - key: STRIPE_PRICE_BUSINESS
+        sync: false

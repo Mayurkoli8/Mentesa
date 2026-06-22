@@ -49,7 +49,7 @@ const CreateBot = () => {
                 }
             }
 
-            navigate('/dashboard');
+            navigate(`/bot/${newBot.id}`);
 
         } catch (err) {
             console.error(err);

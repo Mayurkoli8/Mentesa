@@ -1,7 +1,26 @@
 venv/
+.venv/
 __pycache__/
 *.pyc
 *.pkl
 *.log
+
+# Secrets - never commit
 .env
+.env.*
+!.env.example
 serviceAccountKey.json
+frontend/.streamlit/secrets.toml
+**/secrets.toml
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# OS / editor
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/

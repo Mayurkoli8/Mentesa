@@ -1,94 +1,100 @@
-# Mentesa: A No-Code AI Bot Creation Platform for Everyone
+# Mentesa — No-Code AI Chatbot Platform
 
-**Mentesa** is an innovative no-code platform that enables users to create intelligent, personalized AI agents using just natural language. Powered by open-source LLMs like Mistral and Mixtral (via Ollama), Mentesa supports RAG, file-based learning, memory, and fine-tuning — all without writing a single line of code.
+Mentesa lets anyone build a custom AI chatbot from a plain-language description,
+feed it knowledge (websites + documents), and embed it on any website with a
+single `<script>` tag. This is the **mentesa-final** rebuild: React frontend,
+FastAPI backend, pluggable LLMs, real RAG, rate limiting, and Stripe subscriptions.
 
-## 🌐 Live 
+## Architecture
 
-🔗 [Mentesa on Streamlit](https://Mentesa.streamlit.app)
-
-## 🌐 V4 
-
-🔗 [Mentesa on Streamlit](https://Mentesa4.streamlit.app)
-
-## ✨ New in Version $
-
-- 📄 The bots created on mentesav4 can be implented on external website through simple step without hardcoding 
-- 🤖 Bots can be used on external website as assistant for the website
-
-## ✨ Core Key Features
-
-- 🤖 Create bots using natural language
-- 📄 Upload PDFs, notes, and documents for contextual understanding
-- 🧠 Powered by open-source LLMs (via Ollama)
-- 🧷 Retrieval-Augmented Generation (RAG)
-- 💾 Long-term memory + Fine-tuning (LoRA support)
-- 📦 Export bot bundles for integration
-- ☁️ Cloud hosting & sharing of your bots
-    
-## 🧱 Tech Stack (Initial Plan)
-
-- **Frontend**: Streamlit (for MVP), later React
-- **Backend**: FastAPI (or Flask), Render
-- **LLMs**: Mistral / Mixtral (via Ollama)
-- **Vector DB**: FAISS or ChromaDB
-- **Embeddings**: SentenceTransformers
-- **File Parsing**: PyMuPDF / PyPDF2
-- **Storage**: Firebase / Firestore / Supabase
-
-
-## 📂 Suggested Folder Structure
-```bash
-Mentesa/
-├── frontend/ # UI (Streamlit or React)
-├── backend/ # FastAPI / Flask server
-├── llm_agents/ # Bot creation logic
-├── data/ # User files (PDFs, notes, etc.)
-├── utils/ # Helper modules (RAG, embeddings, etc.)
-├── requirements.txt
-└── README.md
+```
+frontend-react/   React + Vite + Tailwind  (deploy: Vercel)
+backend/          FastAPI app              (deploy: Render)
+  config.py         env + subscription plan definitions
+  llm_provider.py   provider abstraction (Groq | Gemini)
+  rag.py            chunking, embeddings, cosine retrieval
+  billing.py        subscription state + monthly usage metering (Firestore)
+  stripe_service.py Stripe Checkout + webhook sync
+  ratelimit.py      in-memory sliding-window limiter
+  main.py           API routes
+utils/            Firebase init, scraper, file helpers
+data/             local scratch (bots mirror lives in Firestore)
 ```
 
-## 🚀 Getting Started
+### Tech stack
+- **Frontend:** React 19, Vite, Tailwind CSS, React Router, Axios
+- **Backend:** FastAPI, Uvicorn
+- **LLM:** Groq (default, `llama-3.3-70b-versatile`) or Gemini — swap with one env var
+- **Embeddings / RAG:** Gemini `gemini-embedding-001` (hash fallback if unavailable)
+- **Data / Auth:** Firebase Auth + Firestore
+- **Payments:** Stripe (Checkout + Billing Portal + webhooks)
 
-1. Clone the repo:
+## Subscription plans
+
+| Plan     | Price   | Bots      | Messages/mo | Branding |
+|----------|---------|-----------|-------------|----------|
+| Free     | $0      | 1         | 100         | Yes      |
+| Pro      | $19/mo  | 10        | 5,000       | No       |
+| Business | $49/mo  | Unlimited | 50,000      | No       |
+
+Limits are enforced on bot creation and on every `/chat` call. Usage is metered
+per user per calendar month in Firestore (`usage/{uid}_{YYYYMM}`).
+
+## Local setup
+
+### Backend
 ```bash
-git clone https://github.com/Mayurkoli8/Mentesa.git
-cd mentesa
-git checkout v4
+pip install -r requirements.txt
+cp .env.example .env        # fill in your keys
+uvicorn backend.main:app --reload
 ```
 
-## Importand when runing the app ofline on streamlit 
-1. Get a Google Gemini API key.
-2. Put it in .streamlit/secrets.toml OR in streamlit secrete as GEMINI_API_KEY.
+Required env vars (see `.env.example`):
+- `GROQ_API_KEY` (or set `LLM_PROVIDER=gemini` to use `GEMINI_API_KEY`)
+- `GEMINI_API_KEY` — used for RAG embeddings
+- `FIREBASE_API_KEY`, `SERVICE_ACCOUNT_JSON_B64`
+- Stripe keys (optional locally; billing endpoints return 503 until set)
 
-## 📦 Installation
-
+### Frontend
 ```bash
-git clone git clone https://github.com/Mayurkoli8/Mentesa.git
-git checkout v4
-cd mentesa
-pip install -r requirements.txt                                        
-streamlit frontend/run app.py
-cd backend
-uvicorn main:app --reload   
+cd frontend-react
+npm install
+cp .env.example .env        # set VITE_API_URL if backend isn't on :8000
+npm run dev
 ```
-⚙️ Requirements (requirements.txt)
-streamlit
 
-**Download Ollama + Mistral to run the app**
+## Deployment
 
-📄 License
-No License Yet
+- **Backend → Render:** `render.yaml` blueprint included. Set the secret env
+  vars in the dashboard. Health check is `/`.
+- **Frontend → Vercel:** `vercel.json` included. Set `VITE_API_URL` to your
+  Render backend URL.
+- **Stripe webhook:** point it at `https://<backend>/billing/webhook` and set
+  `STRIPE_WEBHOOK_SECRET`. Listen for `checkout.session.completed` and
+  `customer.subscription.*` events.
 
-🤝 Contributing
-Fork the repository
+## Embedding a bot
 
-Create a feature branch (git checkout -b feature/my-feature)
+From a bot's **Manage** page, copy the snippet:
+```html
+<script src="https://<backend>/static/embed.js"
+  data-api-key="mentesa_sk_..."
+  data-bot-name="My Bot"
+  data-backend-url="https://<backend>"></script>
+```
+The "Powered by Mentesa" footer is hidden automatically for Pro/Business bots.
 
-Commit your changes (git commit -m 'Add something')
+## Security notes
+- `/chat` requires a valid bot **API key** for embedded widgets; raw `bot_id` is
+  only accepted as a fallback for the owner's in-app test chat.
+- Bot create/delete, key rotation, file upload, and billing all require a valid
+  session (`X-Session-Id` header).
+- Per-key/IP sliding-window rate limiting protects `/chat` from bursts.
+- Secrets (`.env`, `secrets.toml`) are gitignored. **Rotate any keys that were
+  previously committed before going to production.**
 
-Push and create a pull request
+## License
+No license yet.
 
-📬 Contact
-Name: Mayur Koli 
-Email: kolimohit9595@gmail.com
+## Contact
+Mayur Koli — kolimohit9595@gmail.com

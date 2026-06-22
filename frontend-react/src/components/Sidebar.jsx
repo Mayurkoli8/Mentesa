@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, PlusCircle, MessageSquare, User, Settings, Search } from 'lucide-react';
+import { Home, PlusCircle, MessageSquare, User, Settings, Search, CreditCard } from 'lucide-react';
 
 const Sidebar = () => {
     const location = useLocation();
@@ -51,6 +51,16 @@ const Sidebar = () => {
                     <div className="flex items-center gap-3">
                         <MessageSquare size={20} />
                         <span>Chat</span>
+                    </div>
+                </Link>
+
+                <Link
+                    to="/billing"
+                    className={`sidebar-link ${isActive('/billing') ? 'active' : ''}`}
+                >
+                    <div className="flex items-center gap-3">
+                        <CreditCard size={20} />
+                        <span>Billing</span>
                     </div>
                 </Link>
             </nav>

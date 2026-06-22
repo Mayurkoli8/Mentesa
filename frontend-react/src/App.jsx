@@ -10,6 +10,7 @@ import CreateBot from './pages/CreateBot';
 import ManageBot from './pages/ManageBot';
 import Chat from './pages/Chat';
 import MeetUs from './pages/MeetUs';
+import Billing from './pages/Billing';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -56,6 +57,11 @@ const App = () => {
                   </ProtectedRoute>
                 } />
                 <Route path="/meet-us" element={<MeetUs />} />
+                <Route path="/billing" element={
+                  <ProtectedRoute>
+                    <Billing />
+                  </ProtectedRoute>
+                } />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </main>

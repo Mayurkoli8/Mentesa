@@ -148,6 +148,10 @@ footer.innerHTML = `Powered by <a href="https://mentesav6.streamlit.app" target=
       });
       const data = await res.json();
       addMessage(botName, data.reply || "No reply");
+      // Respect paid-plan branding removal.
+      if (data.branding === false && footer) {
+        footer.style.display = "none";
+      }
     } catch (err) {
       addMessage(botName, "Error: " + err.message);
     }
