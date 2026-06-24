@@ -27,7 +27,7 @@ from firebase_admin import auth as admin_auth, firestore as fa_firestore
 from utils.firebase_config import db
 from utils.scraper import scrape_website
 
-from backend import config, llm_provider, rag, billing, stripe_service, ratelimit
+from backend import config, llm_provider, rag, billing, payment_service, ratelimit
 
 # -------------------------------------------------
 # Init
@@ -582,14 +582,14 @@ def billing_usage(x_session_id: Optional[str] = Header(default=None)):
 def billing_checkout(payload: Dict[str, str],
                      x_session_id: Optional[str] = Header(default=None)):
     session = require_session(x_session_id)
-    if not stripe_service.enabled():
+    if not payment_service.enabled():
         raise HTTPException(status_code=503, detail="Billing is not configured")
     plan_id = payload.get("plan_id")
     if plan_id not in config.PLANS or plan_id == config.DEFAULT_PLAN:
         raise HTTPException(status_code=400, detail="Invalid plan")
     try:
-        return stripe_service.create_checkout_session(
-            session["uid"], session["email"], plan_id)
+        return payment_service.create_checkout_session(
+            session["uid"], session["email"], session.get("displayName", ""), plan_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -597,24 +597,28 @@ def billing_checkout(payload: Dict[str, str],
 @app.post("/billing/portal")
 def billing_portal(x_session_id: Optional[str] = Header(default=None)):
     session = require_session(x_session_id)
-    if not stripe_service.enabled():
+    if not payment_service.enabled():
         raise HTTPException(status_code=503, detail="Billing is not configured")
     try:
-        return stripe_service.create_portal_session(session["uid"])
+        return payment_service.create_portal_session(session["uid"])
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/billing/webhook")
-async def billing_webhook(request: Request,
-                          stripe_signature: Optional[str] = Header(default=None)):
+async def billing_webhook(request: Request):
     payload = await request.body()
+    headers = {
+        "webhook-id": request.headers.get("webhook-id", ""),
+        "webhook-signature": request.headers.get("webhook-signature", ""),
+        "webhook-timestamp": request.headers.get("webhook-timestamp", ""),
+    }
     try:
-        event = stripe_service.verify_and_parse_webhook(payload, stripe_signature)
+        event = payment_service.verify_and_parse_webhook(payload, headers)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Webhook verification failed: {e}")
     try:
-        stripe_service.handle_event(event)
+        payment_service.handle_event(event)
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
     return {"received": True}

@@ -30,11 +30,12 @@ EMBED_MODEL = os.getenv("EMBED_MODEL", "models/gemini-embedding-001")
 # Firebase
 FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY")
 
-# Stripe
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
-STRIPE_PRICE_PRO = os.getenv("STRIPE_PRICE_PRO")
-STRIPE_PRICE_BUSINESS = os.getenv("STRIPE_PRICE_BUSINESS")
+# Dodo Payments (Merchant of Record)
+DODO_API_KEY = os.getenv("DODO_PAYMENTS_API_KEY")
+DODO_WEBHOOK_KEY = os.getenv("DODO_PAYMENTS_WEBHOOK_KEY")
+DODO_ENVIRONMENT = os.getenv("DODO_PAYMENTS_ENVIRONMENT", "test_mode")  # test_mode | live_mode
+DODO_PRODUCT_PRO = os.getenv("DODO_PRODUCT_PRO")
+DODO_PRODUCT_BUSINESS = os.getenv("DODO_PRODUCT_BUSINESS")
 
 # -------------------------------------------------
 # Subscription plans
@@ -49,7 +50,7 @@ PLANS = {
         "bot_limit": 1,
         "message_limit": 100,
         "branding": True,
-        "stripe_price_id": None,
+        "product_id": None,
     },
     "pro": {
         "name": "Pro",
@@ -57,7 +58,7 @@ PLANS = {
         "bot_limit": 10,
         "message_limit": 5000,
         "branding": False,
-        "stripe_price_id": STRIPE_PRICE_PRO,
+        "product_id": DODO_PRODUCT_PRO,
     },
     "business": {
         "name": "Business",
@@ -65,7 +66,7 @@ PLANS = {
         "bot_limit": None,  # unlimited
         "message_limit": 50000,
         "branding": False,
-        "stripe_price_id": STRIPE_PRICE_BUSINESS,
+        "product_id": DODO_PRODUCT_BUSINESS,
     },
 }
 
@@ -77,9 +78,9 @@ def get_plan(plan_id: str | None) -> dict:
     return PLANS.get((plan_id or DEFAULT_PLAN).lower(), PLANS[DEFAULT_PLAN])
 
 
-def plan_id_from_price(price_id: str | None) -> str:
-    """Map a Stripe price id back to our internal plan id."""
+def plan_id_from_product(product_id: str | None) -> str:
+    """Map a Dodo product id back to our internal plan id."""
     for pid, plan in PLANS.items():
-        if plan.get("stripe_price_id") and plan["stripe_price_id"] == price_id:
+        if plan.get("product_id") and plan["product_id"] == product_id:
             return pid
     return DEFAULT_PLAN

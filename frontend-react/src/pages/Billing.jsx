@@ -13,7 +13,7 @@ const Billing = () => {
 
     useEffect(() => {
         load();
-        // Reflect Stripe redirect status
+        // Reflect Dodo Payments redirect status
         const params = new URLSearchParams(window.location.search);
         if (params.get('status') === 'success') {
             setTimeout(load, 1500); // give webhook a moment

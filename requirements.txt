@@ -10,7 +10,7 @@ groq
 google-generativeai
 
 # --- Billing ---
-stripe
+dodopayments
 
 # --- Data / Firebase ---
 firebase-admin

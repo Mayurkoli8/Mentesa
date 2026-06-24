@@ -2,7 +2,7 @@
 
 Mentesa is a no-code AI chatbot platform. React (Vite) frontend, FastAPI backend,
 Firebase/Firestore for data & auth, pluggable LLM (Groq default, Gemini fallback),
-real RAG, Stripe subscriptions.
+real RAG, Dodo Payments subscriptions.
 
 ## Architecture
 - `frontend-react/` — React 19 + Vite + Tailwind. Deploy: Vercel (root dir = `frontend-react`).
@@ -22,6 +22,8 @@ real RAG, Stripe subscriptions.
 - LLM access ONLY through `backend/llm_provider.py` (never import groq/genai directly in routes).
 - RAG via `backend/rag.py` (chunk -> embed -> cosine retrieve), chunks cached per-bot in Firestore.
 - Plan limits & usage metering via `backend/billing.py`; enforce on bot-create and `/chat`.
+- Payments via `backend/payment_service.py` (Dodo Payments, Merchant of Record).
+  Plans map to Dodo product IDs in `config.PLANS`. Webhooks verified with Standard Webhooks.
 - Owner-only routes require a valid session (`X-Session-Id` header -> `require_session`).
 - Embedded `/chat` requires a valid bot API key; raw `bot_id` is owner-test fallback only.
 - Subscription plans defined in `backend/config.py` PLANS dict.

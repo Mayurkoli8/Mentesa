@@ -32,11 +32,13 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
-      - key: STRIPE_SECRET_KEY
+      - key: DODO_PAYMENTS_API_KEY
         sync: false
-      - key: STRIPE_WEBHOOK_SECRET
+      - key: DODO_PAYMENTS_WEBHOOK_KEY
         sync: false
-      - key: STRIPE_PRICE_PRO
+      - key: DODO_PAYMENTS_ENVIRONMENT
         sync: false
-      - key: STRIPE_PRICE_BUSINESS
+      - key: DODO_PRODUCT_PRO
+        sync: false
+      - key: DODO_PRODUCT_BUSINESS
         sync: false

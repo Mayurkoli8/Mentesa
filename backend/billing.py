@@ -3,8 +3,8 @@
 Subscription + usage metering, stored in Firestore.
 
 Documents:
-  subscriptions/{uid}  -> { plan, status, stripe_customer_id,
-                            stripe_subscription_id, current_period_end }
+  subscriptions/{uid}  -> { plan, status, dodo_customer_id,
+                            dodo_subscription_id, current_period_end }
   usage/{uid}_{YYYYMM} -> { uid, period, message_count }
 
 Limits are enforced by main.py before each chat / bot creation.

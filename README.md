@@ -3,7 +3,7 @@
 Mentesa lets anyone build a custom AI chatbot from a plain-language description,
 feed it knowledge (websites + documents), and embed it on any website with a
 single `<script>` tag. This is the **mentesa-final** rebuild: React frontend,
-FastAPI backend, pluggable LLMs, real RAG, rate limiting, and Stripe subscriptions.
+FastAPI backend, pluggable LLMs, real RAG, rate limiting, and Dodo Payments subscriptions.
 
 ## Architecture
 
@@ -14,7 +14,7 @@ backend/          FastAPI app              (deploy: Render)
   llm_provider.py   provider abstraction (Groq | Gemini)
   rag.py            chunking, embeddings, cosine retrieval
   billing.py        subscription state + monthly usage metering (Firestore)
-  stripe_service.py Stripe Checkout + webhook sync
+  payment_service.py Dodo Payments checkout + webhook sync
   ratelimit.py      in-memory sliding-window limiter
   main.py           API routes
 utils/            Firebase init, scraper, file helpers
@@ -27,7 +27,7 @@ data/             local scratch (bots mirror lives in Firestore)
 - **LLM:** Groq (default, `llama-3.3-70b-versatile`) or Gemini — swap with one env var
 - **Embeddings / RAG:** Gemini `gemini-embedding-001` (hash fallback if unavailable)
 - **Data / Auth:** Firebase Auth + Firestore
-- **Payments:** Stripe (Checkout + Billing Portal + webhooks)
+- **Payments:** Dodo Payments (Merchant of Record — Checkout + Customer Portal + webhooks)
 
 ## Subscription plans
 
@@ -53,7 +53,7 @@ Required env vars (see `.env.example`):
 - `GROQ_API_KEY` (or set `LLM_PROVIDER=gemini` to use `GEMINI_API_KEY`)
 - `GEMINI_API_KEY` — used for RAG embeddings
 - `FIREBASE_API_KEY`, `SERVICE_ACCOUNT_JSON_B64`
-- Stripe keys (optional locally; billing endpoints return 503 until set)
+- Dodo Payments keys (optional locally; billing endpoints return 503 until set)
 
 ### Frontend
 ```bash
@@ -69,9 +69,10 @@ npm run dev
   vars in the dashboard. Health check is `/`.
 - **Frontend → Vercel:** `vercel.json` included. Set `VITE_API_URL` to your
   Render backend URL.
-- **Stripe webhook:** point it at `https://<backend>/billing/webhook` and set
-  `STRIPE_WEBHOOK_SECRET`. Listen for `checkout.session.completed` and
-  `customer.subscription.*` events.
+- **Dodo webhook:** point it at `https://<backend>/billing/webhook` and set
+  `DODO_PAYMENTS_WEBHOOK_KEY`. Subscribe to `subscription.active`,
+  `subscription.renewed`, `subscription.on_hold`, `subscription.cancelled`,
+  and `subscription.plan_changed` events.
 
 ## Embedding a bot
 
