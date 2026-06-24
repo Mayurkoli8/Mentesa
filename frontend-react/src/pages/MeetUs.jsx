@@ -21,12 +21,12 @@ const MeetUs = () => {
                 ].map((member, i) => (
                     <div key={i} className="glass p-8 rounded-2xl text-center group hover:-translate-y-2 transition-transform duration-300">
                         <div className={`w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br ${member.color} p-1`}>
-                            <div className="w-full h-full bg-slate-900 rounded-full flex items-center justify-center text-2xl font-bold">
+                            <div className="w-full h-full rounded-full flex items-center justify-center text-2xl font-bold" style={{ background: 'var(--bg-tertiary)' }}>
                                 {member.name.split(' ').map(n => n[0]).join('')}
                             </div>
                         </div>
-                        <h3 className="text-xl font-bold text-white mb-2">{member.name}</h3>
-                        <p className="text-gray-400">{member.role}</p>
+                        <h3 className="text-xl font-bold mb-2">{member.name}</h3>
+                        <p style={{ color: 'var(--text-muted)' }}>{member.role}</p>
                     </div>
                 ))}
             </div>

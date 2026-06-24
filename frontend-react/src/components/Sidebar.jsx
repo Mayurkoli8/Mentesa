@@ -9,16 +9,14 @@ const Sidebar = () => {
 
     return (
         <div className="sidebar">
-            <div className="p-6 border-b border-white/5">
+            <div className="p-6" style={{ borderBottom: '1px solid var(--border-soft)' }}>
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{
-                        background: 'linear-gradient(135deg, #00d9d9 0%, #00b8b8 100%)'
-                    }}>
-                        <span className="text-xl font-bold" style={{ color: '#1a2332' }}>M</span>
+                    <div className="logo-mark">
+                        <span className="text-xl">M</span>
                     </div>
                     <div>
-                        <div className="font-bold text-lg">Mentesa<span style={{ color: '#00d9d9' }}>.live</span></div>
-                        <div className="text-xs text-gray-500">Your Personal AI Builder</div>
+                        <div className="font-bold text-lg">Mentesa<span className="brand-gradient">.live</span></div>
+                        <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Your Personal AI Builder</div>
                     </div>
                 </div>
             </div>
@@ -65,8 +63,8 @@ const Sidebar = () => {
                 </Link>
             </nav>
 
-            <div className="p-4 border-t border-white/5 text-xs text-gray-500 text-right">
-                v1.0
+            <div className="p-4 text-xs text-right" style={{ borderTop: '1px solid var(--border-soft)', color: 'var(--text-muted)' }}>
+                v2.0
             </div>
         </div>
     );

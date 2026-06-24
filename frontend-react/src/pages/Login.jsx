@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, User } from 'lucide-react';
 import api from '../utils/api';
+import ThemeToggle from '../components/ThemeToggle';
+import { useToast } from '../context/ToastContext';
 
 const Login = () => {
     const [isLogin, setIsLogin] = useState(true);
@@ -13,6 +15,7 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
+    const toast = useToast();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -22,6 +25,7 @@ const Login = () => {
         if (isLogin) {
             const res = await login(email, password);
             if (res.success) {
+                toast.success('Welcome back!');
                 navigate('/dashboard');
             } else {
                 setError(res.message);
@@ -29,11 +33,13 @@ const Login = () => {
         } else {
             try {
                 await api.post('/auth/register', { email, password, display_name: name });
+                toast.success('Account created. Check your email to verify.');
                 const res = await login(email, password);
                 if (res.success) {
                     navigate('/dashboard');
                 } else {
-                    setError("Account created but login failed. Please check verification email if sent.");
+                    setError("Account created. Please verify your email, then sign in.");
+                    setIsLogin(true);
                 }
             } catch (err) {
                 setError(err.response?.data?.detail || "Registration failed");
@@ -43,16 +49,27 @@ const Login = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4">
-            <div className="w-full max-w-md">
+        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+            {/* Ambient blobs */}
+            <div className="blob" style={{ width: 340, height: 340, top: '-60px', left: '-40px', background: '#00d9d9' }} />
+            <div className="blob" style={{ width: 300, height: 300, bottom: '-60px', right: '-30px', background: '#7a5cff' }} />
+
+            <div className="absolute top-5 right-5 z-10">
+                <ThemeToggle />
+            </div>
+
+            <div className="w-full max-w-md relative z-10">
                 <div className="text-center mb-8">
+                    <div className="logo-mark mx-auto mb-4" style={{ width: 56, height: 56 }}>
+                        <span className="text-2xl">M</span>
+                    </div>
                     <h1 className="text-4xl font-bold mb-2">
-                        Mentesa<span style={{ color: 'var(--accent-cyan)' }}>.live</span>
+                        Mentesa<span className="brand-gradient">.live</span>
                     </h1>
-                    <p className="text-gray-400">Your Personal AI Builder</p>
+                    <p style={{ color: 'var(--text-muted)' }}>Your Personal AI Builder</p>
                 </div>
 
-                <div className="p-8 rounded-lg" style={{ background: 'var(--bg-secondary)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                <div className="card p-8">
                     <h2 className="text-2xl font-bold mb-6 text-center">
                         {isLogin ? 'Sign In' : 'Create Account'}
                     </h2>
@@ -66,7 +83,7 @@ const Login = () => {
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {!isLogin && (
                             <div className="relative">
-                                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                                <User className="absolute left-3 top-1/2 -translate-y-1/2" size={20} style={{ color: 'var(--text-muted)' }} />
                                 <input
                                     type="text"
                                     placeholder="Full Name"
@@ -79,7 +96,7 @@ const Login = () => {
                         )}
 
                         <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2" size={20} style={{ color: 'var(--text-muted)' }} />
                             <input
                                 type="email"
                                 placeholder="Email Address"
@@ -91,7 +108,7 @@ const Login = () => {
                         </div>
 
                         <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2" size={20} style={{ color: 'var(--text-muted)' }} />
                             <input
                                 type="password"
                                 placeholder="Password"
@@ -111,7 +128,7 @@ const Login = () => {
                         </button>
                     </form>
 
-                    <div className="mt-6 text-center text-sm text-gray-400">
+                    <div className="mt-6 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
                         {isLogin ? "Don't have an account? " : "Already have an account? "}
                         <button
                             onClick={() => { setIsLogin(!isLogin); setError(''); }}

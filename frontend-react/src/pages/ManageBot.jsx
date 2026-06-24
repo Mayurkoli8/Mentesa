@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api, { API_URL } from '../utils/api';
 import { Copy, RefreshCw, Upload, Check, MessageSquare, ArrowLeft, KeyRound } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
 
 const ManageBot = () => {
     const { botId } = useParams();
     const navigate = useNavigate();
+    const toast = useToast();
     const [bot, setBot] = useState(null);
     const [apiKey, setApiKey] = useState('');
-    const [maskedKey, setMaskedKey] = useState('');
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [copied, setCopied] = useState('');
@@ -27,7 +28,6 @@ const ManageBot = () => {
             ]);
             setBot(botRes.data);
             setApiKey(keyRes.data.api_key);
-            setMaskedKey(keyRes.data.api_key_masked);
         } catch (err) {
             setError(err.response?.data?.detail || 'Failed to load bot');
         } finally {
@@ -40,9 +40,9 @@ const ManageBot = () => {
         try {
             const res = await api.post(`/bots/${botId}/rotate-key`);
             setApiKey(res.data.api_key);
-            setMaskedKey(res.data.api_key_masked);
+            toast.success('API key rotated');
         } catch (err) {
-            setError(err.response?.data?.detail || 'Failed to rotate key');
+            toast.error(err.response?.data?.detail || 'Failed to rotate key');
         }
     };
 
@@ -58,8 +58,9 @@ const ManageBot = () => {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             await load();
+            toast.success('File added to knowledge base');
         } catch (err) {
-            setError(err.response?.data?.detail || 'Upload failed');
+            toast.error(err.response?.data?.detail || 'Upload failed');
         } finally {
             setUploading(false);
         }
@@ -70,6 +71,7 @@ const ManageBot = () => {
     const copy = (text, which) => {
         navigator.clipboard.writeText(text);
         setCopied(which);
+        toast.success('Copied to clipboard');
         setTimeout(() => setCopied(''), 1500);
     };
 

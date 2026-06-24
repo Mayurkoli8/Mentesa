@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import api from '../utils/api';
 import { Send } from 'lucide-react';
 
 const Chat = () => {
     const { botId } = useParams();
-    const navigate = useNavigate();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -91,13 +90,25 @@ const Chat = () => {
 
     return (
         <div className="flex flex-col h-[calc(100vh-64px)]">
-            <div className="p-6 border-b border-white/5">
+            <div className="p-6 flex items-center justify-between gap-4 flex-wrap" style={{ borderBottom: '1px solid var(--border-soft)' }}>
                 <h1 className="text-2xl font-bold">{botName}</h1>
+                {bots.length > 0 && (
+                    <select
+                        className="input-field"
+                        style={{ maxWidth: 240 }}
+                        value={selectedBotId}
+                        onChange={(e) => { setSelectedBotId(e.target.value); setMessages([]); }}
+                    >
+                        {bots.map((b) => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                    </select>
+                )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
                 {messages.length === 0 && (
-                    <div className="text-center text-gray-500 mt-20">
+                    <div className="text-center mt-20" style={{ color: 'var(--text-muted)' }}>
                         Start a conversation with your bot
                     </div>
                 )}
@@ -107,8 +118,8 @@ const Chat = () => {
                         <div
                             className="max-w-[70%] px-4 py-3 rounded-lg"
                             style={{
-                                background: msg.role === 'user' ? '#0088ff' : '#00d9d9',
-                                color: msg.role === 'user' ? 'white' : '#1a2332'
+                                background: msg.role === 'user' ? 'var(--accent-cyan)' : 'var(--bg-tertiary)',
+                                color: msg.role === 'user' ? '#06121f' : 'var(--text-primary)',
                             }}
                         >
                             {msg.content}
@@ -118,7 +129,7 @@ const Chat = () => {
 
                 {loading && (
                     <div className="flex justify-start">
-                        <div className="px-4 py-3 rounded-lg text-gray-400 italic" style={{ background: 'var(--bg-tertiary)' }}>
+                        <div className="px-4 py-3 rounded-lg italic" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
                             Typing...
                         </div>
                     </div>
@@ -126,7 +137,7 @@ const Chat = () => {
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-6 border-t border-white/5">
+            <div className="p-6" style={{ borderTop: '1px solid var(--border-soft)' }}>
                 <form onSubmit={handleSend} className="flex gap-3">
                     <input
                         type="text"
@@ -142,7 +153,7 @@ const Chat = () => {
                         className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
                         style={{
                             background: input.trim() && selectedBotId ? 'var(--accent-cyan)' : 'var(--bg-tertiary)',
-                            color: input.trim() && selectedBotId ? '#1a2332' : '#7a8a9e'
+                            color: input.trim() && selectedBotId ? '#06121f' : 'var(--text-muted)'
                         }}
                     >
                         <Send size={20} />
