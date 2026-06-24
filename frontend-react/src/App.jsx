@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
+import Landing from './pages/Landing';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import CreateBot from './pages/CreateBot';
@@ -19,62 +20,44 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-const App = () => {
-  const { user } = useAuth();
+// Shell with sidebar + navbar for authenticated app pages.
+const AppShell = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  return (
+    <div className="app-layout">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+      <div className="main-content">
+        <Navbar onMenuClick={() => setSidebarOpen(true)} />
+        <main>{children}</main>
+      </div>
+    </div>
+  );
+};
 
+const Protected = ({ children }) => (
+  <ProtectedRoute><AppShell>{children}</AppShell></ProtectedRoute>
+);
+
+const App = () => {
   return (
     <Router>
-      {user ? (
-        <div className="app-layout">
-          <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-          {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
-          <div className="main-content">
-            <Navbar onMenuClick={() => setSidebarOpen(true)} />
-            <main>
-              <Routes>
-                <Route path="/" element={
-                  <ProtectedRoute>
-                    <Home />
-                  </ProtectedRoute>
-                } />
-                <Route path="/dashboard" element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                } />
-                <Route path="/create-bot" element={
-                  <ProtectedRoute>
-                    <CreateBot />
-                  </ProtectedRoute>
-                } />
-                <Route path="/bot/:botId" element={
-                  <ProtectedRoute>
-                    <ManageBot />
-                  </ProtectedRoute>
-                } />
-                <Route path="/chat/:botId?" element={
-                  <ProtectedRoute>
-                    <Chat />
-                  </ProtectedRoute>
-                } />
-                <Route path="/meet-us" element={<MeetUs />} />
-                <Route path="/billing" element={
-                  <ProtectedRoute>
-                    <Billing />
-                  </ProtectedRoute>
-                } />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Routes>
-            </main>
-          </div>
-        </div>
-      ) : (
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      )}
+      <Routes>
+        {/* Public */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/meet-us" element={<MeetUs />} />
+
+        {/* Authenticated app */}
+        <Route path="/home" element={<Protected><Home /></Protected>} />
+        <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+        <Route path="/create-bot" element={<Protected><CreateBot /></Protected>} />
+        <Route path="/bot/:botId" element={<Protected><ManageBot /></Protected>} />
+        <Route path="/chat/:botId?" element={<Protected><Chat /></Protected>} />
+        <Route path="/billing" element={<Protected><Billing /></Protected>} />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </Router>
   );
 };
