@@ -17,4 +17,4 @@ Allow: /
 User-agent: Applebot-Extended
 Allow: /
 
-Sitemap: https://mentesa.live/sitemap.xml
+Sitemap: https://www.mentesa.live/sitemap.xml
