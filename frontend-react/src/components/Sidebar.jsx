@@ -1,16 +1,22 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, PlusCircle, MessageSquare, User, Settings, Search, CreditCard } from 'lucide-react';
+import { Home, PlusCircle, MessageSquare, CreditCard, Users } from 'lucide-react';
 
-const Sidebar = () => {
+const NAV = [
+    { to: '/dashboard', label: 'Home', icon: Home, match: (p) => p === '/dashboard' || p === '/' },
+    { to: '/create-bot', label: 'Create', icon: PlusCircle, match: (p) => p === '/create-bot' },
+    { to: '/chat', label: 'Chat', icon: MessageSquare, match: (p) => p.startsWith('/chat') },
+    { to: '/billing', label: 'Billing', icon: CreditCard, match: (p) => p === '/billing' },
+    { to: '/meet-us', label: 'Meet Us', icon: Users, match: (p) => p === '/meet-us' },
+];
+
+const Sidebar = ({ open, onClose }) => {
     const location = useLocation();
 
-    const isActive = (path) => location.pathname === path;
-
     return (
-        <div className="sidebar">
+        <div className={`sidebar ${open ? 'sidebar-open' : ''}`}>
             <div className="p-6" style={{ borderBottom: '1px solid var(--border-soft)' }}>
-                <div className="flex items-center gap-3">
+                <Link to="/dashboard" className="flex items-center gap-3" onClick={onClose}>
                     <div className="logo-mark">
                         <span className="text-xl">M</span>
                     </div>
@@ -18,49 +24,23 @@ const Sidebar = () => {
                         <div className="font-bold text-lg">Mentesa<span className="brand-gradient">.live</span></div>
                         <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Your Personal AI Builder</div>
                     </div>
-                </div>
+                </Link>
             </div>
 
             <nav className="sidebar-nav">
-                <Link
-                    to="/dashboard"
-                    className={`sidebar-link ${isActive('/dashboard') || isActive('/') ? 'active' : ''}`}
-                >
-                    <div className="flex items-center gap-3">
-                        <Home size={20} />
-                        <span>Home</span>
-                    </div>
-                </Link>
-
-                <Link
-                    to="/create-bot"
-                    className={`sidebar-link ${isActive('/create-bot') ? 'active' : ''}`}
-                >
-                    <div className="flex items-center gap-3">
-                        <PlusCircle size={20} />
-                        <span>Create</span>
-                    </div>
-                </Link>
-
-                <Link
-                    to="/chat"
-                    className={`sidebar-link ${location.pathname.startsWith('/chat') ? 'active' : ''}`}
-                >
-                    <div className="flex items-center gap-3">
-                        <MessageSquare size={20} />
-                        <span>Chat</span>
-                    </div>
-                </Link>
-
-                <Link
-                    to="/billing"
-                    className={`sidebar-link ${isActive('/billing') ? 'active' : ''}`}
-                >
-                    <div className="flex items-center gap-3">
-                        <CreditCard size={20} />
-                        <span>Billing</span>
-                    </div>
-                </Link>
+                {NAV.map(({ to, label, icon: Icon, match }) => (
+                    <Link
+                        key={to}
+                        to={to}
+                        onClick={onClose}
+                        className={`sidebar-link ${match(location.pathname) ? 'active' : ''}`}
+                    >
+                        <div className="flex items-center gap-3">
+                            <Icon size={20} />
+                            <span>{label}</span>
+                        </div>
+                    </Link>
+                ))}
             </nav>
 
             <div className="p-4 text-xs text-right" style={{ borderTop: '1px solid var(--border-soft)', color: 'var(--text-muted)' }}>

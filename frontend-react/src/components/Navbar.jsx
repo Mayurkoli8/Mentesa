@@ -1,11 +1,11 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import { LogOut, Menu } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 import { useToast } from '../context/ToastContext';
 
-const Navbar = () => {
+const Navbar = ({ onMenuClick }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const toast = useToast();
@@ -21,8 +21,15 @@ const Navbar = () => {
     const initial = (user.displayName || user.email || '?').charAt(0).toUpperCase();
 
     return (
-        <div className="h-16 flex items-center justify-end px-6 gap-4"
+        <div className="h-16 flex items-center px-4 sm:px-6 gap-4"
             style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-soft)' }}>
+            <button onClick={onMenuClick} className="nav-hamburger p-2 rounded-lg" aria-label="Open menu"
+                style={{ background: 'var(--hover-soft)' }}>
+                <Menu size={20} />
+            </button>
+
+            <div className="flex-1" />
+
             <ThemeToggle />
 
             <div className="flex items-center gap-3 pl-2">

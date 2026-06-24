@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
@@ -21,14 +21,16 @@ const ProtectedRoute = ({ children }) => {
 
 const App = () => {
   const { user } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <Router>
       {user ? (
         <div className="app-layout">
-          <Sidebar />
+          <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+          {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
           <div className="main-content">
-            <Navbar />
+            <Navbar onMenuClick={() => setSidebarOpen(true)} />
             <main>
               <Routes>
                 <Route path="/" element={
