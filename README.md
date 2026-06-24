@@ -31,11 +31,11 @@ data/             local scratch (bots mirror lives in Firestore)
 
 ## Subscription plans
 
-| Plan     | Price   | Bots      | Messages/mo | Branding |
-|----------|---------|-----------|-------------|----------|
-| Free     | $0      | 1         | 100         | Yes      |
-| Pro      | $19/mo  | 10        | 5,000       | No       |
-| Business | $49/mo  | Unlimited | 50,000      | No       |
+| Plan     | Price     | Bots      | Messages/mo | Branding |
+|----------|-----------|-----------|-------------|----------|
+| Free     | $0        | 1         | 100         | Yes      |
+| Pro      | $4.99/mo  | 10        | 5,000       | No       |
+| Business | $9.99/mo  | Unlimited | 50,000      | No       |
 
 Limits are enforced on bot creation and on every `/chat` call. Usage is metered
 per user per calendar month in Firestore (`usage/{uid}_{YYYYMM}`).

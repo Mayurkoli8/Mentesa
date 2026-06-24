@@ -113,8 +113,14 @@ const Billing = () => {
                                 <h3 className="text-xl font-bold">{plan.name}</h3>
                             </div>
                             <div className="mb-6">
-                                <span className="text-3xl font-bold">${plan.price_usd}</span>
-                                <span className="text-gray-400">/mo</span>
+                                {plan.price_usd === 0 ? (
+                                    <span className="text-3xl font-bold">Free</span>
+                                ) : (
+                                    <>
+                                        <span className="text-3xl font-bold">${plan.price_usd.toFixed(2)}</span>
+                                        <span style={{ color: 'var(--text-muted)' }}>/mo</span>
+                                    </>
+                                )}
                             </div>
                             <ul className="space-y-3 mb-6 text-sm">
                                 <li className="flex items-center gap-2">

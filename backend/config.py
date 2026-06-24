@@ -54,7 +54,7 @@ PLANS = {
     },
     "pro": {
         "name": "Pro",
-        "price_usd": 19,
+        "price_usd": 4.99,
         "bot_limit": 10,
         "message_limit": 5000,
         "branding": False,
@@ -62,7 +62,7 @@ PLANS = {
     },
     "business": {
         "name": "Business",
-        "price_usd": 49,
+        "price_usd": 9.99,
         "bot_limit": None,  # unlimited
         "message_limit": 50000,
         "branding": False,
