@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 import { Send, Bot, ChevronDown } from 'lucide-react';
 
 const Chat = () => {
     const { botId } = useParams();
+    const { user } = useAuth();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -14,13 +16,14 @@ const Chat = () => {
 
     const selectedBot = bots.find((b) => b.id === selectedBotId);
 
-    useEffect(() => { loadBots(); }, []);
+    useEffect(() => { loadBots(); }, [user]);
     useEffect(() => { if (selectedBotId) loadHistory(selectedBotId); }, [selectedBotId]);
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
     const loadBots = async () => {
+        if (!user?.email) return;
         try {
-            const res = await api.get('/bots');
+            const res = await api.get(`/bots?owner_email=${encodeURIComponent(user.email)}`);
             setBots(res.data);
             if (!selectedBotId && res.data.length > 0) setSelectedBotId(res.data[0].id);
         } catch (err) {

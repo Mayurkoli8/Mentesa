@@ -220,17 +220,23 @@ def root():
 # Routes: Bots
 # -------------------------------------------------
 @app.get("/bots", response_model=List[BotPublic])
-def list_bots(owner_email: Optional[str] = None):
-    if owner_email:
-        return [sanitize_public(b) for b in bots if b.get("owner_email") == owner_email]
-    return [sanitize_public(b) for b in bots]
+def list_bots(owner_email: Optional[str] = None,
+              x_session_id: Optional[str] = Header(default=None)):
+    # Authenticated callers only ever see their own bots. The owner_email
+    # query param is ignored for security; ownership comes from the session.
+    session = require_session(x_session_id)
+    email = session["email"]
+    return [sanitize_public(b) for b in bots if b.get("owner_email") == email]
 
 
 @app.get("/bots/{bot_id}", response_model=BotPublic)
-def get_bot(bot_id: str):
+def get_bot(bot_id: str, x_session_id: Optional[str] = Header(default=None)):
+    session = require_session(x_session_id)
     b = find_bot_by_id(bot_id)
     if not b:
         raise HTTPException(status_code=404, detail="Bot not found")
+    if b.get("owner_email") != session["email"]:
+        raise HTTPException(status_code=403, detail="Not your bot")
     return sanitize_public(b)
 
 
@@ -538,7 +544,13 @@ def auth_register(payload: Dict[str, str]):
 # Routes: Chat history
 # -------------------------------------------------
 @app.get("/bots/{bot_id}/history")
-def get_chat_history(bot_id: str):
+def get_chat_history(bot_id: str, x_session_id: Optional[str] = Header(default=None)):
+    session = require_session(x_session_id)
+    b = find_bot_by_id(bot_id)
+    if not b:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    if b.get("owner_email") != session["email"]:
+        raise HTTPException(status_code=403, detail="Not your bot")
     doc = db.collection("bot_chats").document(bot_id).get()
     if doc.exists:
         return doc.to_dict().get("history", [])
@@ -546,7 +558,14 @@ def get_chat_history(bot_id: str):
 
 
 @app.post("/bots/{bot_id}/history")
-def save_chat_history(bot_id: str, payload: Dict[str, Any]):
+def save_chat_history(bot_id: str, payload: Dict[str, Any],
+                      x_session_id: Optional[str] = Header(default=None)):
+    session = require_session(x_session_id)
+    b = find_bot_by_id(bot_id)
+    if not b:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    if b.get("owner_email") != session["email"]:
+        raise HTTPException(status_code=403, detail="Not your bot")
     history = payload.get("history", [])
     db.collection("bot_chats").document(bot_id).set({"history": history})
     return {"status": "ok"}
