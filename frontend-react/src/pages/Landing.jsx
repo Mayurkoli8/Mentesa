@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from '../components/ThemeToggle';
+import Logo from '../components/Logo';
 import {
     ArrowRight, Globe, FileText, MessageCircle, Code2, Sparkles, Brain,
     Zap, ShieldCheck, Plug, ChevronDown, Github, ExternalLink, Check,
@@ -65,7 +66,7 @@ const Landing = () => {
             {/* Header */}
             <header className="landing-header">
                 <Link to="/" className="flex items-center gap-2">
-                    <div className="logo-mark" style={{ width: 38, height: 38 }}><span>M</span></div>
+                    <Logo size={34} />
                     <span className="font-bold text-lg">Mentesa<span className="brand-gradient">.live</span></span>
                 </Link>
                 <nav className="flex items-center gap-2 sm:gap-4">
@@ -115,9 +116,9 @@ const Landing = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {STEPS.map((s, i) => (
                         <div key={i} className="card card-hover p-6 text-center">
-                            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 mx-auto"
-                                style={{ background: 'rgba(0,217,217,0.12)', border: '2px solid var(--accent-cyan)' }}>
-                                <s.icon size={26} style={{ color: 'var(--accent-cyan)' }} />
+                            <div className="w-14 h-14 flex items-center justify-center mb-4 mx-auto"
+                                style={{ background: 'rgba(0,217,217,0.10)', border: '1px solid var(--accent-cyan)', borderRadius: 'var(--radius-md)' }}>
+                                <s.icon size={24} style={{ color: 'var(--accent-cyan)' }} />
                             </div>
                             <div className="text-sm font-bold mb-1" style={{ color: 'var(--accent-cyan)' }}>Step {i + 1}</div>
                             <h3 className="font-semibold mb-2">{s.title}</h3>
@@ -200,9 +201,9 @@ const Landing = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {TEAM.map((m) => (
                         <a key={m.name} href={m.url} target="_blank" rel="noreferrer" className="card card-hover p-6 text-center">
-                            <div className={`w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br ${m.color} p-1`}>
-                                <div className="w-full h-full rounded-full flex items-center justify-center text-xl font-bold"
-                                    style={{ background: 'var(--bg-tertiary)' }}>{m.initials}</div>
+                            <div className={`w-16 h-16 mx-auto mb-4 bg-gradient-to-br ${m.color} p-0.5`} style={{ borderRadius: 'var(--radius-md)' }}>
+                                <div className="w-full h-full flex items-center justify-center text-lg font-bold"
+                                    style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>{m.initials}</div>
                             </div>
                             <h3 className="font-bold flex items-center justify-center gap-1">{m.name} <Github size={14} style={{ color: 'var(--text-muted)' }} /></h3>
                             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{m.role}</p>
@@ -227,7 +228,7 @@ const Landing = () => {
             <footer className="px-6 py-10" style={{ borderTop: '1px solid var(--border-soft)' }}>
                 <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
-                        <div className="logo-mark" style={{ width: 30, height: 30 }}><span className="text-sm">M</span></div>
+                        <Logo size={28} />
                         <span className="font-semibold">Mentesa</span>
                         <span className="text-sm" style={{ color: 'var(--text-muted)' }}>© {new Date().getFullYear()}</span>
                     </div>

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, User } from 'lucide-react';
 import api from '../utils/api';
 import ThemeToggle from '../components/ThemeToggle';
+import Logo from '../components/Logo';
 import { useToast } from '../context/ToastContext';
 
 const Login = () => {
@@ -60,8 +61,8 @@ const Login = () => {
 
             <div className="w-full max-w-md relative z-10">
                 <div className="text-center mb-8">
-                    <div className="logo-mark mx-auto mb-4" style={{ width: 56, height: 56 }}>
-                        <span className="text-2xl">M</span>
+                    <div className="flex justify-center mb-4">
+                        <Logo size={56} />
                     </div>
                     <h1 className="text-4xl font-bold mb-2">
                         Mentesa<span className="brand-gradient">.live</span>

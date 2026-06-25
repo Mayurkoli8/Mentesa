@@ -1,60 +1,40 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../utils/api';
-import { Send } from 'lucide-react';
+import { Send, Bot, ChevronDown } from 'lucide-react';
 
 const Chat = () => {
     const { botId } = useParams();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
-    const [botName, setBotName] = useState('Bot');
     const [bots, setBots] = useState([]);
     const [selectedBotId, setSelectedBotId] = useState(botId || '');
     const messagesEndRef = useRef(null);
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
+    const selectedBot = bots.find((b) => b.id === selectedBotId);
 
-    useEffect(() => {
-        loadBots();
-    }, []);
-
-    useEffect(() => {
-        if (selectedBotId) {
-            loadBotAndHistory(selectedBotId);
-        }
-    }, [selectedBotId]);
-
-    useEffect(() => {
-        scrollToBottom();
-    }, [messages]);
+    useEffect(() => { loadBots(); }, []);
+    useEffect(() => { if (selectedBotId) loadHistory(selectedBotId); }, [selectedBotId]);
+    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
     const loadBots = async () => {
         try {
             const res = await api.get('/bots');
             setBots(res.data);
-            if (!selectedBotId && res.data.length > 0) {
-                setSelectedBotId(res.data[0].id);
-            }
+            if (!selectedBotId && res.data.length > 0) setSelectedBotId(res.data[0].id);
         } catch (err) {
-            console.error("Failed to load bots", err);
+            console.error('Failed to load bots', err);
         }
     };
 
-    const loadBotAndHistory = async (id) => {
+    const loadHistory = async (id) => {
         try {
-            const [botRes, historyRes] = await Promise.all([
-                api.get(`/bots/${id}`),
-                api.get(`/bots/${id}/history`)
-            ]);
-            setBotName(botRes.data.name);
-            if (Array.isArray(historyRes.data)) {
-                setMessages(historyRes.data);
-            }
+            const historyRes = await api.get(`/bots/${id}/history`);
+            setMessages(Array.isArray(historyRes.data) ? historyRes.data : []);
         } catch (err) {
-            console.error("Failed to load chat", err);
+            console.error('Failed to load chat', err);
+            setMessages([]);
         }
     };
 
@@ -69,20 +49,13 @@ const Chat = () => {
         setLoading(true);
 
         try {
-            const res = await api.post('/chat', {
-                bot_id: selectedBotId,
-                message: input
-            });
-
-            const botMsg = { role: 'bot', content: res.data.reply };
-            const finalHistory = [...newHistory, botMsg];
-
+            const res = await api.post('/chat', { bot_id: selectedBotId, message: input });
+            const finalHistory = [...newHistory, { role: 'bot', content: res.data.reply }];
             setMessages(finalHistory);
             await api.post(`/bots/${selectedBotId}/history`, { history: finalHistory });
-
         } catch (err) {
-            console.error("Chat error", err);
-            setMessages([...newHistory, { role: 'bot', content: "⚠️ Error sending message. Please try again." }]);
+            console.error('Chat error', err);
+            setMessages([...newHistory, { role: 'bot', content: '⚠️ Error sending message. Please try again.' }]);
         } finally {
             setLoading(false);
         }
@@ -90,36 +63,57 @@ const Chat = () => {
 
     return (
         <div className="flex flex-col h-[calc(100vh-64px)]">
-            <div className="p-6 flex items-center justify-between gap-4 flex-wrap" style={{ borderBottom: '1px solid var(--border-soft)' }}>
-                <h1 className="text-2xl font-bold">{botName}</h1>
-                {bots.length > 0 && (
-                    <select
-                        className="input-field"
-                        style={{ maxWidth: 240 }}
-                        value={selectedBotId}
-                        onChange={(e) => { setSelectedBotId(e.target.value); setMessages([]); }}
-                    >
-                        {bots.map((b) => (
-                            <option key={b.id} value={b.id}>{b.name}</option>
-                        ))}
-                    </select>
-                )}
+            {/* Header with bot selector */}
+            <div className="px-6 py-4 flex items-center justify-between gap-4 flex-wrap"
+                style={{ borderBottom: '1px solid var(--border-soft)', background: 'var(--bg-secondary)' }}>
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 flex items-center justify-center flex-shrink-0"
+                        style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
+                        <Bot size={20} style={{ color: 'var(--accent-cyan)' }} />
+                    </div>
+                    <div className="min-w-0">
+                        <div className="font-bold truncate">{selectedBot?.name || 'Select a bot'}</div>
+                        <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+                            {selectedBot?.personality?.slice(0, 50) || 'Choose a bot to start chatting'}
+                        </div>
+                    </div>
+                </div>
+
+                <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+                    <span className="hidden sm:inline">Chatting with</span>
+                    <div className="relative">
+                        <select
+                            className="input-field appearance-none pr-9"
+                            style={{ minWidth: 200 }}
+                            value={selectedBotId}
+                            onChange={(e) => { setSelectedBotId(e.target.value); setMessages([]); }}
+                        >
+                            {bots.length === 0 && <option value="">No bots yet</option>}
+                            {bots.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                        </select>
+                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                            style={{ color: 'var(--text-muted)' }} />
+                    </div>
+                </label>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-3">
                 {messages.length === 0 && (
                     <div className="text-center mt-20" style={{ color: 'var(--text-muted)' }}>
-                        Start a conversation with your bot
+                        {selectedBotId ? 'Start a conversation with your bot.' : 'Select a bot above to begin.'}
                     </div>
                 )}
 
                 {messages.map((msg, idx) => (
                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div
-                            className="max-w-[70%] px-4 py-3 rounded-lg"
+                            className="max-w-[75%] px-4 py-2.5"
                             style={{
-                                background: msg.role === 'user' ? 'var(--accent-cyan)' : 'var(--bg-tertiary)',
+                                background: msg.role === 'user' ? 'var(--accent-cyan)' : 'var(--bg-secondary)',
                                 color: msg.role === 'user' ? '#06121f' : 'var(--text-primary)',
+                                border: msg.role === 'user' ? 'none' : '1px solid var(--border-soft)',
+                                borderRadius: 'var(--radius-md)',
                             }}
                         >
                             {msg.content}
@@ -129,34 +123,38 @@ const Chat = () => {
 
                 {loading && (
                     <div className="flex justify-start">
-                        <div className="px-4 py-3 rounded-lg italic" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
-                            Typing...
+                        <div className="px-4 py-2.5 italic"
+                            style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)', border: '1px solid var(--border-soft)', borderRadius: 'var(--radius-md)' }}>
+                            Typing…
                         </div>
                     </div>
                 )}
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-6" style={{ borderTop: '1px solid var(--border-soft)' }}>
-                <form onSubmit={handleSend} className="flex gap-3">
+            {/* Input */}
+            <div className="p-4" style={{ borderTop: '1px solid var(--border-soft)', background: 'var(--bg-secondary)' }}>
+                <form onSubmit={handleSend} className="flex gap-2">
                     <input
                         type="text"
                         className="input-field flex-1"
-                        placeholder="Type a message..."
+                        placeholder={selectedBotId ? 'Type a message…' : 'Select a bot first'}
                         value={input}
-                        onChange={e => setInput(e.target.value)}
+                        onChange={(e) => setInput(e.target.value)}
                         disabled={loading || !selectedBotId}
                     />
                     <button
                         type="submit"
                         disabled={loading || !input.trim() || !selectedBotId}
-                        className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
+                        className="px-4 flex items-center justify-center"
                         style={{
                             background: input.trim() && selectedBotId ? 'var(--accent-cyan)' : 'var(--bg-tertiary)',
-                            color: input.trim() && selectedBotId ? '#06121f' : 'var(--text-muted)'
+                            color: input.trim() && selectedBotId ? '#06121f' : 'var(--text-muted)',
+                            borderRadius: 'var(--radius-md)',
+                            minWidth: 48,
                         }}
                     >
-                        <Send size={20} />
+                        <Send size={18} />
                     </button>
                 </form>
             </div>

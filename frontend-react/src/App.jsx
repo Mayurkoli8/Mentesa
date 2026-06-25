@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import CreateBot from './pages/CreateBot';
 import ManageBot from './pages/ManageBot';
+import Manage from './pages/Manage';
 import Chat from './pages/Chat';
 import MeetUs from './pages/MeetUs';
 import Billing from './pages/Billing';
@@ -52,6 +53,7 @@ const App = () => {
         <Route path="/home" element={<Protected><Home /></Protected>} />
         <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
         <Route path="/create-bot" element={<Protected><CreateBot /></Protected>} />
+        <Route path="/manage" element={<Protected><Manage /></Protected>} />
         <Route path="/bot/:botId" element={<Protected><ManageBot /></Protected>} />
         <Route path="/chat/:botId?" element={<Protected><Chat /></Protected>} />
         <Route path="/billing" element={<Protected><Billing /></Protected>} />
