@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -17,22 +17,18 @@ const Chat = () => {
 
     const selectedBot = bots.find((b) => b.id === selectedBotId);
 
-    useEffect(() => { loadBots(); }, [user]);
-    useEffect(() => { if (selectedBotId) loadHistory(selectedBotId); }, [selectedBotId]);
-    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
-
-    const loadBots = async () => {
+    const loadBots = useCallback(async () => {
         if (!user?.email) return;
         try {
             const res = await api.get(`/bots?owner_email=${encodeURIComponent(user.email)}`);
             setBots(res.data);
-            if (!selectedBotId && res.data.length > 0) setSelectedBotId(res.data[0].id);
+            setSelectedBotId((cur) => cur || (res.data.length > 0 ? res.data[0].id : ''));
         } catch (err) {
             console.error('Failed to load bots', err);
         }
-    };
+    }, [user]);
 
-    const loadHistory = async (id) => {
+    const loadHistory = useCallback(async (id) => {
         try {
             const historyRes = await api.get(`/bots/${id}/history`);
             setMessages(Array.isArray(historyRes.data) ? historyRes.data : []);
@@ -40,7 +36,11 @@ const Chat = () => {
             console.error('Failed to load chat', err);
             setMessages([]);
         }
-    };
+    }, []);
+
+    useEffect(() => { loadBots(); }, [loadBots]);
+    useEffect(() => { if (selectedBotId) loadHistory(selectedBotId); }, [selectedBotId, loadHistory]);
+    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
     const handleSend = async (e) => {
         e.preventDefault();

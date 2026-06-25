@@ -28,19 +28,22 @@ const Sidebar = ({ open, onClose }) => {
             </div>
 
             <nav className="sidebar-nav">
-                {NAV.map(({ to, label, icon: Icon, match }) => (
-                    <Link
-                        key={to}
-                        to={to}
-                        onClick={onClose}
-                        className={`sidebar-link ${match(location.pathname) ? 'active' : ''}`}
-                    >
-                        <div className="flex items-center gap-3">
-                            <Icon size={20} />
-                            <span>{label}</span>
-                        </div>
-                    </Link>
-                ))}
+                {NAV.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                        <Link
+                            key={item.to}
+                            to={item.to}
+                            onClick={onClose}
+                            className={`sidebar-link ${item.match(location.pathname) ? 'active' : ''}`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <Icon size={20} />
+                                <span>{item.label}</span>
+                            </div>
+                        </Link>
+                    );
+                })}
             </nav>
 
             <div className="p-4 text-xs text-right" style={{ borderTop: '1px solid var(--border-soft)', color: 'var(--text-muted)' }}>
