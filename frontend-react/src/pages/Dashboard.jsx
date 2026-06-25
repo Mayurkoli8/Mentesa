@@ -4,6 +4,10 @@ import api from '../utils/api';
 import { Trash2, MessageSquare, Settings2, Plus, Bot, Zap, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
+import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
+import { SkeletonCard } from '../components/Skeleton';
 
 const Dashboard = () => {
     const { user } = useAuth();
@@ -11,6 +15,7 @@ const Dashboard = () => {
     const [bots, setBots] = useState([]);
     const [usage, setUsage] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -19,16 +24,18 @@ const Dashboard = () => {
 
     const fetchData = async () => {
         if (!user?.email) return;
+        setLoading(true);
+        setError(false);
         try {
             const [botsRes, usageRes] = await Promise.all([
-                api.get(`/bots?owner_email=${user.email}`),
+                api.get(`/bots?owner_email=${encodeURIComponent(user.email)}`),
                 api.get('/billing/usage').catch(() => ({ data: null })),
             ]);
             setBots(botsRes.data);
             setUsage(usageRes.data);
         } catch (err) {
-            console.error("Failed to fetch dashboard", err);
-            toast.error('Could not load your bots');
+            console.error('Failed to fetch dashboard', err);
+            setError(true);
         } finally {
             setLoading(false);
         }
@@ -38,10 +45,10 @@ const Dashboard = () => {
         if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
         try {
             await api.delete(`/bots/${botId}`);
-            setBots(bots.filter(b => b.id !== botId));
+            setBots(bots.filter((b) => b.id !== botId));
             toast.success(`Deleted ${name}`);
         } catch (e) {
-            toast.error(e.response?.data?.detail || "Failed to delete bot");
+            toast.error(e.response?.data?.detail || 'Failed to delete bot');
         }
     };
 
@@ -52,75 +59,64 @@ const Dashboard = () => {
     ];
 
     return (
-        <div className="p-8 animate-fade-in relative min-h-[calc(100vh-64px)]">
-            <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold">Welcome back, {user?.displayName?.split(' ')[0] || 'there'} 👋</h1>
-                    <p style={{ color: 'var(--text-muted)' }}>Manage your AI bots and track usage.</p>
-                </div>
-                <Link to="/create-bot" className="btn-primary flex items-center gap-2">
-                    <Plus size={18} /> New Bot
-                </Link>
-            </div>
+        <div className="page animate-fade-in">
+            <PageHeader
+                title={`Welcome back, ${user?.displayName?.split(' ')[0] || 'there'}`}
+                subtitle="Manage your AI bots and track usage."
+                icon={<Bot size={22} />}
+                actions={<Link to="/create-bot" className="btn-primary flex items-center gap-2"><Plus size={18} /> New Bot</Link>}
+            />
 
             {/* Stat tiles */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
                 {stats.map((s, i) => (
-                    <div key={i} className="stat-tile card-hover">
-                        <div className="flex items-center gap-2 mb-3" style={{ color: 'var(--text-muted)' }}>
+                    <div key={i} className="stat-tile">
+                        <div className="flex items-center gap-2 mb-3 t-muted">
                             <s.icon size={18} style={{ color: 'var(--accent-cyan)' }} />
-                            <span className="text-sm">{s.label}</span>
+                            <span>{s.label}</span>
                         </div>
-                        <div className="stat-value">{loading ? <span className="skeleton inline-block w-16 h-7" /> : s.value}</div>
-                        {s.sub && <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{s.sub}</div>}
+                        <div className="stat-value">{loading ? <span className="skeleton inline-block" style={{ width: 64, height: 28 }} /> : s.value}</div>
+                        {s.sub && <div className="t-muted mt-1">{s.sub}</div>}
                     </div>
                 ))}
             </div>
 
-            <h2 className="text-xl font-bold mb-4">Your Bots</h2>
+            <h2 className="t-section mb-4">Your Bots</h2>
 
             {loading ? (
                 <div className="space-y-3">
-                    {[1, 2, 3].map(i => <div key={i} className="skeleton h-16 w-full" />)}
+                    {[1, 2, 3].map((i) => <SkeletonCard key={i} height={72} />)}
                 </div>
+            ) : error ? (
+                <ErrorState message="We couldn't load your bots. Check your connection and try again." onRetry={fetchData} />
             ) : bots.length === 0 ? (
-                <div className="card p-12 text-center">
-                    <Bot size={48} className="mx-auto mb-4" style={{ color: 'var(--accent-cyan)' }} />
-                    <p className="mb-6" style={{ color: 'var(--text-muted)' }}>No bots yet. Build your first AI assistant in seconds.</p>
-                    <Link to="/create-bot" className="btn-primary inline-flex items-center gap-2">
-                        <Plus size={18} /> Create Your First Bot
-                    </Link>
-                </div>
+                <EmptyState
+                    icon={<Bot size={26} />}
+                    title="No bots yet"
+                    description="Build your first AI assistant in seconds — describe it, add knowledge, and embed it anywhere."
+                    action={{ label: 'Create Your First Bot', to: '/create-bot', icon: <Plus size={18} /> }}
+                />
             ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 stagger">
                     {bots.map((bot) => (
-                        <div key={bot.id}
-                            className="card card-hover flex items-center justify-between p-4">
+                        <div key={bot.id} className="list-row">
                             <div className="flex items-center gap-4 flex-1 min-w-0">
-                                <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                                    style={{ background: 'var(--bg-tertiary)' }}>
-                                    <Bot size={20} style={{ color: 'var(--accent-cyan)' }} />
-                                </div>
+                                <div className="icon-chip icon-chip--sm"><Bot size={18} /></div>
                                 <div className="min-w-0">
-                                    <div className="font-semibold truncate">{bot.name}</div>
-                                    <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                                        {bot.personality?.slice(0, 70) || 'AI assistant'}
-                                    </div>
+                                    <div className="t-card-title truncate">{bot.name}</div>
+                                    <div className="t-muted truncate">{bot.personality?.slice(0, 70) || 'AI assistant'}</div>
                                 </div>
                             </div>
 
                             <div className="flex items-center gap-1 flex-shrink-0">
-                                <Link to={`/bot/${bot.id}`} className="p-2 rounded-lg transition-colors hover:opacity-100 opacity-70"
-                                    style={{ background: 'var(--hover-soft)' }} title="Manage">
+                                <Link to={`/bot/${bot.id}`} className="icon-btn" aria-label={`Manage ${bot.name}`} title="Manage">
                                     <Settings2 size={18} />
                                 </Link>
-                                <Link to={`/chat/${bot.id}`} className="p-2 rounded-lg transition-colors hover:opacity-100 opacity-70"
-                                    style={{ background: 'var(--hover-soft)' }} title="Chat">
+                                <Link to={`/chat/${bot.id}`} className="icon-btn" aria-label={`Chat with ${bot.name}`} title="Chat">
                                     <MessageSquare size={18} />
                                 </Link>
-                                <button onClick={() => deleteBot(bot.id, bot.name)}
-                                    className="p-2 rounded-lg transition-colors text-red-400 opacity-70 hover:opacity-100"
-                                    title="Delete">
+                                <button onClick={() => deleteBot(bot.id, bot.name)} className="icon-btn icon-btn--danger"
+                                    aria-label={`Delete ${bot.name}`} title="Delete">
                                     <Trash2 size={18} />
                                 </button>
                             </div>

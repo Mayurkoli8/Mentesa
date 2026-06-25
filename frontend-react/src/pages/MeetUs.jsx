@@ -8,7 +8,7 @@ const MeetUs = () => {
                 <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 mb-4">
                     Meet the Mentesa Team
                 </h1>
-                <p className="text-gray-400 max-w-2xl mx-auto text-lg">
+                <p className="t-body max-w-2xl mx-auto text-lg">
                     We are dedicated to democratizing AI. Our mission is to make powerful generative AI accessible, personal, and fun for everyone.
                 </p>
             </div>
@@ -19,14 +19,15 @@ const MeetUs = () => {
                     { name: "Anirudh Kapurkar", role: "Frontend Developer", color: "from-pink-500 to-rose-500" },
                     { name: "Niharika Wagh", role: "Backend Developer & Research", color: "from-amber-400 to-orange-500" }
                 ].map((member, i) => (
-                    <div key={i} className="glass p-8 rounded-2xl text-center group hover:-translate-y-2 transition-transform duration-300">
-                        <div className={`w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br ${member.color} p-1`}>
-                            <div className="w-full h-full rounded-full flex items-center justify-center text-2xl font-bold" style={{ background: 'var(--bg-tertiary)' }}>
+                    <div key={i} className="card card-hover p-8 text-center">
+                        <div className={`w-20 h-20 mx-auto mb-6 bg-gradient-to-br ${member.color} p-0.5`} style={{ borderRadius: 'var(--radius-md)' }}>
+                            <div className="w-full h-full flex items-center justify-center text-xl font-bold"
+                                style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
                                 {member.name.split(' ').map(n => n[0]).join('')}
                             </div>
                         </div>
-                        <h3 className="text-xl font-bold mb-2">{member.name}</h3>
-                        <p style={{ color: 'var(--text-muted)' }}>{member.role}</p>
+                        <h3 className="t-card-title mb-1">{member.name}</h3>
+                        <p className="t-muted">{member.role}</p>
                     </div>
                 ))}
             </div>

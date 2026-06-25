@@ -76,7 +76,7 @@ const Login = () => {
                     </h2>
 
                     {error && (
-                        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                        <div className="alert-error mb-4">
                             {error}
                         </div>
                     )}

@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api, { API_URL } from '../utils/api';
-import { Copy, RefreshCw, Upload, Check, MessageSquare, ArrowLeft, KeyRound } from 'lucide-react';
+import { Copy, RefreshCw, Upload, Check, MessageSquare, ArrowLeft, KeyRound, Globe, FileText } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import { SkeletonCard } from '../components/Skeleton';
+import ErrorState from '../components/ErrorState';
 
 const ManageBot = () => {
     const { botId } = useParams();
@@ -21,6 +23,8 @@ const ManageBot = () => {
     }, [botId]);
 
     const load = async () => {
+        setLoading(true);
+        setError('');
         try {
             const [botRes, keyRes] = await Promise.all([
                 api.get(`/bots/${botId}`),
@@ -50,13 +54,10 @@ const ManageBot = () => {
         const file = e.target.files[0];
         if (!file) return;
         setUploading(true);
-        setError('');
         try {
             const fd = new FormData();
             fd.append('file', file);
-            await api.post(`/bots/${botId}/upload_file`, fd, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
+            await api.post(`/bots/${botId}/upload_file`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
             await load();
             toast.success('File added to knowledge base');
         } catch (err) {
@@ -76,99 +77,103 @@ const ManageBot = () => {
     };
 
     if (loading) {
-        return <div className="p-8 text-gray-400">Loading bot...</div>;
+        return (
+            <div className="page animate-fade-in">
+                <div className="space-y-4">
+                    <SkeletonCard height={70} />
+                    <SkeletonCard height={120} />
+                    <SkeletonCard height={120} />
+                </div>
+            </div>
+        );
     }
 
-    if (!bot) {
+    if (error || !bot) {
         return (
-            <div className="p-8">
-                <div className="text-red-400 mb-4">{error || 'Bot not found'}</div>
-                <Link to="/dashboard" className="btn-primary">Back to Dashboard</Link>
+            <div className="page">
+                <ErrorState message={error || 'Bot not found.'} onRetry={load} />
+                <div className="text-center mt-4">
+                    <Link to="/manage" className="btn-secondary inline-flex items-center gap-2">
+                        <ArrowLeft size={16} /> Back to Manage
+                    </Link>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="p-8 max-w-3xl mx-auto animate-fade-in">
-            <button onClick={() => navigate('/dashboard')}
-                className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors">
+        <div className="page animate-fade-in">
+            <button onClick={() => navigate('/manage')}
+                className="flex items-center gap-2 mb-6 t-body" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                 <ArrowLeft size={18} /> Back
             </button>
 
-            <div className="flex items-center justify-between mb-2">
-                <h1 className="text-3xl font-bold">{bot.name}</h1>
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-3">
+                <h1 className="t-page-title">{bot.name}</h1>
                 <Link to={`/chat/${bot.id}`} className="btn-secondary flex items-center gap-2">
                     <MessageSquare size={18} /> Test Chat
                 </Link>
             </div>
-            <p className="text-gray-400 mb-8">{bot.personality}</p>
-
-            {error && (
-                <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-                    {error}
-                </div>
-            )}
+            <p className="t-body mb-8">{bot.personality}</p>
 
             {/* API key */}
-            <section className="mb-8 p-6 rounded-lg" style={{ background: 'var(--bg-secondary)' }}>
-                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <section className="card p-6 mb-6">
+                <h2 className="t-section mb-4 flex items-center gap-2">
                     <KeyRound size={20} style={{ color: 'var(--accent-cyan)' }} /> API Key
                 </h2>
                 <div className="flex items-center gap-3">
-                    <code className="flex-1 px-4 py-3 rounded-lg text-sm overflow-x-auto"
-                        style={{ background: 'var(--bg-tertiary)' }}>
+                    <code className="flex-1 px-4 py-3 text-sm overflow-x-auto"
+                        style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
                         {apiKey}
                     </code>
-                    <button onClick={() => copy(apiKey, 'key')}
-                        className="btn-secondary p-3" title="Copy">
+                    <button onClick={() => copy(apiKey, 'key')} className="btn-secondary p-3" aria-label="Copy API key" title="Copy">
                         {copied === 'key' ? <Check size={18} className="text-green-400" /> : <Copy size={18} />}
                     </button>
-                    <button onClick={rotateKey} className="btn-secondary p-3" title="Rotate">
+                    <button onClick={rotateKey} className="btn-secondary p-3" aria-label="Rotate API key" title="Rotate">
                         <RefreshCw size={18} />
                     </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-3">
-                    Keep this secret. Anyone with this key can use your bot's message quota.
-                </p>
+                <p className="t-muted mt-3">Keep this secret. Anyone with this key can use your bot's message quota.</p>
             </section>
 
             {/* Embed */}
-            <section className="mb-8 p-6 rounded-lg" style={{ background: 'var(--bg-secondary)' }}>
-                <h2 className="text-lg font-semibold mb-4">Embed on your website</h2>
-                <p className="text-sm text-gray-400 mb-4">
-                    Paste this snippet before the closing &lt;/body&gt; tag of any page.
-                </p>
+            <section className="card p-6 mb-6">
+                <h2 className="t-section mb-4">Embed on your website</h2>
+                <p className="t-body mb-4">Paste this snippet before the closing &lt;/body&gt; tag of any page.</p>
                 <div className="relative">
-                    <pre className="px-4 py-3 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap"
-                        style={{ background: 'var(--bg-tertiary)' }}>{embedSnippet}</pre>
-                    <button onClick={() => copy(embedSnippet, 'embed')}
-                        className="btn-secondary p-2 absolute top-2 right-2">
+                    <pre className="px-4 py-3 text-xs overflow-x-auto whitespace-pre-wrap"
+                        style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>{embedSnippet}</pre>
+                    <button onClick={() => copy(embedSnippet, 'embed')} className="btn-secondary p-2 absolute top-2 right-2"
+                        aria-label="Copy embed snippet">
                         {copied === 'embed' ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
                     </button>
                 </div>
             </section>
 
             {/* Knowledge */}
-            <section className="p-6 rounded-lg" style={{ background: 'var(--bg-secondary)' }}>
-                <h2 className="text-lg font-semibold mb-4">Knowledge Base</h2>
+            <section className="card p-6">
+                <h2 className="t-section mb-4">Knowledge Base</h2>
                 <div className="space-y-2 mb-4">
                     {(bot.config?.urls || []).map((u, i) => (
-                        <div key={`u-${i}`} className="text-sm text-gray-300 px-3 py-2 rounded"
-                            style={{ background: 'var(--bg-tertiary)' }}>🔗 {u}</div>
+                        <div key={`u-${i}`} className="flex items-center gap-2 t-body px-3 py-2"
+                            style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
+                            <Globe size={15} style={{ color: 'var(--accent-cyan)' }} /> {u}
+                        </div>
                     ))}
                     {(bot.file_data || []).map((f, i) => (
-                        <div key={`f-${i}`} className="text-sm text-gray-300 px-3 py-2 rounded"
-                            style={{ background: 'var(--bg-tertiary)' }}>📄 {f.name}</div>
+                        <div key={`f-${i}`} className="flex items-center gap-2 t-body px-3 py-2"
+                            style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
+                            <FileText size={15} style={{ color: 'var(--accent-cyan)' }} /> {f.name}
+                        </div>
                     ))}
                     {!(bot.config?.urls || []).length && !(bot.file_data || []).length && (
-                        <div className="text-sm text-gray-500">No knowledge sources yet.</div>
+                        <div className="t-muted">No knowledge sources yet.</div>
                     )}
                 </div>
                 <label className="btn-secondary inline-flex items-center gap-2 cursor-pointer">
-                    {uploading ? <RefreshCw size={18} className="animate-spin" /> : <Upload size={18} />}
+                    {uploading ? <RefreshCw size={18} className="spin" /> : <Upload size={18} />}
                     {uploading ? 'Uploading...' : 'Add file (PDF, DOCX, TXT)'}
-                    <input type="file" className="hidden" accept=".pdf,.docx,.txt"
-                        onChange={handleUpload} disabled={uploading} />
+                    <input type="file" className="hidden" accept=".pdf,.docx,.txt" onChange={handleUpload} disabled={uploading} />
                 </label>
             </section>
         </div>

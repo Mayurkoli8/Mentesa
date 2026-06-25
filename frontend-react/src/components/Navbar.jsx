@@ -45,10 +45,8 @@ const Navbar = ({ onMenuClick }) => {
 
             <button
                 onClick={handleLogout}
-                className="p-2 rounded-lg transition-colors text-red-400"
-                style={{ background: 'transparent' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,80,80,0.1)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                className="icon-btn icon-btn--danger"
+                aria-label="Log out"
                 title="Logout"
             >
                 <LogOut size={20} />

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { Send, Bot, ChevronDown } from 'lucide-react';
+import { Send, Bot, ChevronDown, MessageSquare, PlusCircle } from 'lucide-react';
+import EmptyState from '../components/EmptyState';
 
 const Chat = () => {
     const { botId } = useParams();
@@ -88,6 +89,7 @@ const Chat = () => {
                         <select
                             className="input-field appearance-none pr-9"
                             style={{ minWidth: 200 }}
+                            aria-label="Select a bot to chat with"
                             value={selectedBotId}
                             onChange={(e) => { setSelectedBotId(e.target.value); setMessages([]); }}
                         >
@@ -102,14 +104,28 @@ const Chat = () => {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-6 space-y-3">
-                {messages.length === 0 && (
-                    <div className="text-center mt-20" style={{ color: 'var(--text-muted)' }}>
-                        {selectedBotId ? 'Start a conversation with your bot.' : 'Select a bot above to begin.'}
+                {bots.length === 0 ? (
+                    <div className="max-w-md mx-auto mt-16">
+                        <EmptyState
+                            icon={<PlusCircle size={26} />}
+                            title="No bots to chat with"
+                            description="Create your first bot, then come back here to start a conversation."
+                            action={{ label: 'Create a Bot', to: '/create-bot', icon: <PlusCircle size={18} /> }}
+                        />
                     </div>
-                )}
+                ) : messages.length === 0 ? (
+                    <div className="max-w-md mx-auto mt-16">
+                        <EmptyState
+                            icon={<MessageSquare size={26} />}
+                            title="Start the conversation"
+                            description={`Say hello to ${selectedBot?.name || 'your bot'} and ask it anything about its knowledge.`}
+                        />
+                    </div>
+                ) : null}
 
                 {messages.map((msg, idx) => (
-                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        style={{ animation: 'fadeIn var(--dur-base) ease-out' }}>
                         <div
                             className="max-w-[75%] px-4 py-2.5"
                             style={{
@@ -149,6 +165,7 @@ const Chat = () => {
                     <button
                         type="submit"
                         disabled={loading || !input.trim() || !selectedBotId}
+                        aria-label="Send message"
                         className="px-4 flex items-center justify-center"
                         style={{
                             background: input.trim() && selectedBotId ? 'var(--accent-cyan)' : 'var(--bg-tertiary)',
