@@ -1,20 +1,5 @@
 User-agent: *
 Allow: /
-
-# Allow AI answer engines to read and cite Mentesa
-User-agent: GPTBot
-Allow: /
-User-agent: OAI-SearchBot
-Allow: /
-User-agent: ChatGPT-User
-Allow: /
-User-agent: PerplexityBot
-Allow: /
-User-agent: Google-Extended
-Allow: /
-User-agent: ClaudeBot
-Allow: /
-User-agent: Applebot-Extended
-Allow: /
+Disallow:
 
 Sitemap: https://www.mentesa.live/sitemap.xml
