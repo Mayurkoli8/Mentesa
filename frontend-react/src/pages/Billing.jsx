@@ -13,12 +13,30 @@ const Billing = () => {
 
     useEffect(() => {
         load();
-        // Reflect Dodo Payments redirect status
+        // After returning from Dodo checkout, reconcile the subscription
+        // immediately (safety net in case the webhook is delayed).
         const params = new URLSearchParams(window.location.search);
         if (params.get('status') === 'success') {
-            setTimeout(load, 1500); // give webhook a moment
+            syncAfterCheckout();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    const syncAfterCheckout = async () => {
+        try {
+            const res = await api.post('/billing/sync');
+            if (res.data?.synced) {
+                setUsage(res.data);
+            } else {
+                // Webhook may still be processing; retry once shortly.
+                setTimeout(load, 3000);
+            }
+        } catch {
+            setTimeout(load, 3000);
+        }
+        // Clean the ?status param from the URL.
+        window.history.replaceState({}, '', '/billing');
+    };
 
     const load = async () => {
         try {

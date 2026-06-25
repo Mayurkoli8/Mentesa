@@ -61,6 +61,8 @@ def create_checkout_session(uid: str, email: str, name: str, plan_id: str) -> Di
         metadata={"uid": uid, "plan_id": plan_id},
         subscription_data={"metadata": {"uid": uid, "plan_id": plan_id}},
     )
+    print(f"[Dodo] checkout created for uid={uid} plan={plan_id} "
+          f"return_url={config.FRONTEND_URL}/billing?status=success")
     return {"url": session.checkout_url, "id": session.session_id}
 
 
@@ -94,6 +96,50 @@ def verify_and_parse_webhook(payload: bytes, headers: Dict[str, str]):
     )
 
 
+def sync_from_dodo(uid: str) -> Dict[str, Any]:
+    """Safety-net reconcile: query Dodo for this user's subscriptions and
+    update Firestore. Called after the user returns from checkout so the plan
+    activates even if the webhook is delayed or not yet configured.
+    """
+    client = _get_client()
+    sub = billing.get_subscription(uid)
+    customer_id = sub.get("dodo_customer_id")
+
+    found = None
+    try:
+        # Prefer filtering by our known customer; otherwise scan recent subs.
+        if customer_id:
+            subs = client.subscriptions.list(customer_id=customer_id)
+        else:
+            subs = client.subscriptions.list()
+        for s in subs:
+            meta = _extract(s, "metadata", {}) or {}
+            s_status = _extract(s, "status")
+            if meta.get("uid") == uid and s_status in ("active", "trialing"):
+                found = s
+                break
+    except Exception as e:
+        print(f"[Dodo] sync_from_dodo failed: {e}")
+        return {"synced": False, "reason": str(e)}
+
+    if not found:
+        return {"synced": False, "reason": "no active subscription found"}
+
+    meta = _extract(found, "metadata", {}) or {}
+    product_id = _extract(found, "product_id")
+    plan_id = meta.get("plan_id") or config.plan_id_from_product(product_id)
+    billing.set_subscription(
+        uid,
+        plan=plan_id,
+        status="active",
+        dodo_customer_id=_extract(found, "customer_id") or customer_id,
+        dodo_subscription_id=_extract(found, "subscription_id"),
+        current_period_end=_extract(found, "next_billing_date"),
+    )
+    print(f"[Dodo] sync_from_dodo activated plan={plan_id} for uid={uid}")
+    return {"synced": True, "plan": plan_id}
+
+
 def _extract(obj: Any, key: str, default=None):
     """Read a field whether the payload is a dict or an SDK model."""
     if isinstance(obj, dict):
@@ -118,6 +164,9 @@ def handle_event(event: Any) -> None:
     customer_id = _extract(customer, "customer_id") or _extract(data, "customer_id")
     subscription_id = _extract(data, "subscription_id")
     next_billing = _extract(data, "next_billing_date")
+    status = _extract(data, "status")
+
+    print(f"[Dodo] webhook event={etype} uid={uid} status={status} product={product_id}")
 
     if not uid:
         # Without our uid metadata we can't attribute the subscription.
@@ -134,6 +183,21 @@ def handle_event(event: Any) -> None:
             dodo_subscription_id=subscription_id,
             current_period_end=next_billing,
         )
+        print(f"[Dodo] activated plan={plan_id} for uid={uid}")
+
+    elif etype == "subscription.updated":
+        # Safety-net sync: keep plan/status aligned with Dodo's latest state.
+        plan_id = metadata.get("plan_id") or config.plan_id_from_product(product_id)
+        if status in ("active", "trialing"):
+            billing.set_subscription(
+                uid, plan=plan_id, status="active",
+                dodo_customer_id=customer_id, dodo_subscription_id=subscription_id,
+                current_period_end=next_billing,
+            )
+        elif status in ("cancelled", "canceled", "expired", "failed"):
+            billing.set_subscription(uid, plan=config.DEFAULT_PLAN, status="canceled")
+        elif status == "on_hold":
+            billing.set_subscription(uid, status="past_due")
 
     elif etype == "subscription.on_hold":
         billing.set_subscription(uid, status="past_due")

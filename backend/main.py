@@ -597,6 +597,19 @@ def billing_usage(x_session_id: Optional[str] = Header(default=None)):
     return billing.usage_summary(session["uid"])
 
 
+@app.post("/billing/sync")
+def billing_sync(x_session_id: Optional[str] = Header(default=None)):
+    """Reconcile subscription state from Dodo (safety net after checkout)."""
+    session = require_session(x_session_id)
+    if not payment_service.enabled():
+        raise HTTPException(status_code=503, detail="Billing is not configured")
+    try:
+        result = payment_service.sync_from_dodo(session["uid"])
+        return {**result, **billing.usage_summary(session["uid"])}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/billing/checkout")
 def billing_checkout(payload: Dict[str, str],
                      x_session_id: Optional[str] = Header(default=None)):
