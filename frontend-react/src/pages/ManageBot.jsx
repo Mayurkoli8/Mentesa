@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api, { API_URL } from '../utils/api';
-import { Copy, RefreshCw, Upload, Check, MessageSquare, ArrowLeft, KeyRound, Globe, FileText, Palette } from 'lucide-react';
+import { Copy, RefreshCw, Upload, Check, MessageSquare, ArrowLeft, KeyRound, Globe, FileText, Palette, Pencil, Calendar } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { SkeletonCard } from '../components/Skeleton';
 import ErrorState from '../components/ErrorState';
@@ -18,6 +18,9 @@ const ManageBot = () => {
     const [error, setError] = useState('');
     const [widget, setWidget] = useState(null);
     const [savingWidget, setSavingWidget] = useState(false);
+    const [editName, setEditName] = useState('');
+    const [editPersonality, setEditPersonality] = useState('');
+    const [savingIdentity, setSavingIdentity] = useState(false);
 
     useEffect(() => {
         load();
@@ -36,10 +39,32 @@ const ManageBot = () => {
             setBot(botRes.data);
             setApiKey(keyRes.data.api_key);
             setWidget(widgetRes.data);
+            setEditName(botRes.data.name || '');
+            setEditPersonality(botRes.data.personality || '');
         } catch (err) {
             setError(err.response?.data?.detail || 'Failed to load bot');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const saveIdentity = async () => {
+        if (!editName.trim()) {
+            toast.error('Bot name cannot be empty');
+            return;
+        }
+        setSavingIdentity(true);
+        try {
+            const res = await api.patch(`/bots/${botId}`, {
+                name: editName.trim(),
+                personality: editPersonality.trim(),
+            });
+            setBot(res.data);
+            toast.success('Bot updated');
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Failed to update bot');
+        } finally {
+            setSavingIdentity(false);
         }
     };
 
@@ -136,12 +161,42 @@ const ManageBot = () => {
             </button>
 
             <div className="flex items-center justify-between mb-2 flex-wrap gap-3">
-                <h1 className="t-page-title">{bot.name}</h1>
+                <div className="min-w-0">
+                    <h1 className="t-page-title truncate">{bot.name}</h1>
+                    {bot.created_at && (
+                        <div className="t-muted flex items-center gap-1.5 mt-1">
+                            <Calendar size={13} /> Created {new Date(bot.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </div>
+                    )}
+                </div>
                 <Link to={`/chat/${bot.id}`} className="btn-secondary flex items-center gap-2">
                     <MessageSquare size={18} /> Test Chat
                 </Link>
             </div>
-            <p className="t-body mb-8">{bot.personality}</p>
+
+            {/* Identity (editable) */}
+            <section className="card p-6 mb-6 mt-6">
+                <h2 className="t-section mb-4 flex items-center gap-2">
+                    <Pencil size={18} style={{ color: 'var(--accent-cyan)' }} /> Bot Identity
+                </h2>
+                <div className="space-y-4">
+                    <div>
+                        <label className="block t-muted mb-1">Name</label>
+                        <input className="input-field" value={editName}
+                            onChange={(e) => setEditName(e.target.value)} placeholder="Bot name" />
+                    </div>
+                    <div>
+                        <label className="block t-muted mb-1">Personality</label>
+                        <textarea className="input-field" style={{ minHeight: 110, resize: 'vertical' }}
+                            value={editPersonality} onChange={(e) => setEditPersonality(e.target.value)}
+                            placeholder="Describe how this bot should behave..." />
+                    </div>
+                </div>
+                <button onClick={saveIdentity} disabled={savingIdentity} className="btn-primary mt-4 inline-flex items-center gap-2">
+                    {savingIdentity ? <RefreshCw size={16} className="spin" /> : <Check size={16} />}
+                    {savingIdentity ? 'Saving...' : 'Save changes'}
+                </button>
+            </section>
 
             {/* API key */}
             <section className="card p-6 mb-6">

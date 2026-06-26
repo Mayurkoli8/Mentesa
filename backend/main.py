@@ -111,6 +111,11 @@ class ChatRequest(BaseModel):
     bot_id: Optional[str] = None
 
 
+class BotUpdate(BaseModel):
+    name: Optional[str] = None
+    personality: Optional[str] = None
+
+
 class WidgetConfigUpdate(BaseModel):
     accent: Optional[str] = None          # hex color, e.g. "#00d9d9"
     welcome: Optional[str] = None         # greeting message
@@ -326,6 +331,27 @@ def get_bot(bot_id: str, x_session_id: Optional[str] = Header(default=None)):
         raise HTTPException(status_code=404, detail="Bot not found")
     if b.get("owner_email") != session["email"]:
         raise HTTPException(status_code=403, detail="Not your bot")
+    return sanitize_public(b)
+
+
+@app.patch("/bots/{bot_id}", response_model=BotPublic)
+def update_bot(bot_id: str, payload: BotUpdate,
+               x_session_id: Optional[str] = Header(default=None)):
+    session = require_session(x_session_id)
+    b = find_bot_by_id(bot_id)
+    if not b:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    if b.get("owner_email") != session["email"]:
+        raise HTTPException(status_code=403, detail="Not your bot")
+
+    updates = payload.model_dump(exclude_none=True)
+    if "name" in updates and updates["name"].strip():
+        b["name"] = updates["name"].strip()
+    if "personality" in updates and updates["personality"].strip():
+        b["personality"] = updates["personality"].strip()
+    b["updated_at"] = datetime.now().isoformat()
+    save_bot(b)
+    refresh_bot_in_cache(b)
     return sanitize_public(b)
 
 
