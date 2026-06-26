@@ -46,13 +46,17 @@ class _GroqProvider:
         self.client = Groq(api_key=config.GROQ_API_KEY)
         self.model = config.GROQ_MODEL
 
-    def chat(self, system: str, user: str) -> str:
+    def chat(self, system: str, user: str, history=None) -> str:
+        messages = [{"role": "system", "content": system}]
+        for turn in (history or []):
+            role = "assistant" if turn.get("role") in ("bot", "assistant") else "user"
+            content = (turn.get("content") or "").strip()
+            if content:
+                messages.append({"role": role, "content": content})
+        messages.append({"role": "user", "content": user})
         resp = self.client.chat.completions.create(
             model=self.model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
+            messages=messages,
             temperature=0.7,
         )
         return (resp.choices[0].message.content or "").strip()
@@ -98,8 +102,17 @@ class _GeminiProvider:
         except Exception:
             return ""
 
-    def chat(self, system: str, user: str) -> str:
-        prompt = f"{system}\n\n{user}"
+    def chat(self, system: str, user: str, history=None) -> str:
+        convo = ""
+        for turn in (history or []):
+            speaker = "Assistant" if turn.get("role") in ("bot", "assistant") else "User"
+            content = (turn.get("content") or "").strip()
+            if content:
+                convo += f"{speaker}: {content}\n"
+        prompt = f"{system}\n\n"
+        if convo:
+            prompt += f"Conversation so far:\n{convo}\n"
+        prompt += f"User: {user}\nAssistant:"
         return self._text(self.model.generate_content(prompt))
 
     def generate_json(self, prompt: str) -> str:
@@ -129,12 +142,13 @@ def _get_provider():
 # -------------------------------------------------
 # Public API
 # -------------------------------------------------
-def chat(system: str, user: str, context: Optional[str] = None) -> str:
-    """Generate a conversational reply. `context` is optional RAG content."""
+def chat(system: str, user: str, context: Optional[str] = None, history=None) -> str:
+    """Generate a conversational reply. `context` is optional RAG content;
+    `history` is a list of prior {role, content} turns for conversation memory."""
     if context:
         system = f"{system}\n\nUse ONLY the following knowledge to answer. " \
                  f"If the answer isn't here, say you don't have that information.\n\n{context}"
-    return _get_provider().chat(system, user)
+    return _get_provider().chat(system, user, history=history)
 
 
 def generate_bot_config(description: str, site_text: str = "") -> dict:

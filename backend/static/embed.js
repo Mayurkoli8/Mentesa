@@ -107,6 +107,20 @@
   }
 
   let widget, toggleBtn, messagesBox, input, sendBtn, footer;
+  const history = [];
+
+  // Stable per-visitor conversation id (survives reloads on the same site).
+  const convoKey = "mts_convo_" + (apiKey || "x");
+  let convoId = null;
+  try {
+    convoId = localStorage.getItem(convoKey);
+    if (!convoId) {
+      convoId = (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+      localStorage.setItem(convoKey, convoId);
+    }
+  } catch (e) {
+    convoId = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  }
 
   function build() {
     injectStyles();
@@ -195,14 +209,23 @@
       const res = await fetch(`${backend}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({
+          message: text,
+          history: history.slice(-12),
+          session_id: convoId,
+        }),
       });
       const data = await res.json();
       typing.remove();
       if (!res.ok) {
         addMessage("bot", data.detail || "Sorry, something went wrong.");
       } else {
-        addMessage("bot", data.reply || "No reply");
+        const reply = data.reply || "No reply";
+        addMessage("bot", reply);
+        // Track conversation so the bot remembers earlier turns.
+        history.push({ role: "user", content: text });
+        history.push({ role: "bot", content: reply });
+        if (history.length > 40) history.splice(0, history.length - 40);
         if (data.branding === false && footer) footer.style.display = "none";
       }
     } catch (err) {

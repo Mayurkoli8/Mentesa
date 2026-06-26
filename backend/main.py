@@ -109,6 +109,8 @@ class BotPublic(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     bot_id: Optional[str] = None
+    history: Optional[List[Dict[str, str]]] = Field(default_factory=list)
+    session_id: Optional[str] = None  # widget conversation id for server-side memory
 
 
 class BotUpdate(BaseModel):
@@ -617,16 +619,43 @@ def chat(req: ChatRequest, request: Request,
     system = (
         f"You are '{bot.get('name', 'Bot')}'. "
         f"Personality: {bot.get('personality', '')}. "
-        f"Be helpful and concise."
+        f"Be helpful and concise. Use the conversation so far to stay in context."
     )
 
+    # Build conversation memory. Prefer client-sent history; fall back to / merge
+    # with server-persisted history keyed by the widget's session_id.
+    convo_id = (req.session_id or "").strip()
+    server_history = []
+    if convo_id:
+        doc = db.collection("widget_chats").document(f"{bot['id']}_{convo_id}").get()
+        if doc.exists:
+            server_history = (doc.to_dict() or {}).get("history", [])
+
+    history = req.history if req.history else server_history
+    # Keep only the most recent turns to bound prompt size.
+    history = [h for h in history if isinstance(h, dict) and h.get("content")][-12:]
+
     try:
-        reply = llm_provider.chat(system, req.message, context=context)
+        reply = llm_provider.chat(system, req.message, context=context, history=history)
         if owner_uid:
             billing.increment_usage(owner_uid, 1)
         branding = True
         if owner_uid:
             branding = billing.current_plan(owner_uid).get("branding", True)
+
+        # Persist updated conversation for this widget session (best-effort).
+        if convo_id:
+            try:
+                updated = history + [
+                    {"role": "user", "content": req.message},
+                    {"role": "bot", "content": reply or ""},
+                ]
+                db.collection("widget_chats").document(f"{bot['id']}_{convo_id}").set(
+                    {"history": updated[-40:], "updated_at": datetime.now().isoformat()}
+                )
+            except Exception as e:
+                print(f"[chat] failed to persist widget history: {e}")
+
         return {"reply": reply or "I couldn't generate a reply.",
                 "bot_id": bot["id"], "branding": branding}
     except Exception as e:

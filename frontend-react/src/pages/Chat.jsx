@@ -53,7 +53,12 @@ const Chat = () => {
         setLoading(true);
 
         try {
-            const res = await api.post('/chat', { bot_id: selectedBotId, message: input });
+            const res = await api.post('/chat', {
+                bot_id: selectedBotId,
+                message: input,
+                history: messages.slice(-12),
+                session_id: `app_${selectedBotId}`,
+            });
             const finalHistory = [...newHistory, { role: 'bot', content: res.data.reply }];
             setMessages(finalHistory);
             await api.post(`/bots/${selectedBotId}/history`, { history: finalHistory });
