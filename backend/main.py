@@ -62,6 +62,21 @@ def load_bots():
         bots.append(data)
 
 
+def _bot_from_doc(doc) -> Optional[Dict[str, Any]]:
+    if not doc.exists:
+        return None
+    data = doc.to_dict() or {}
+    data["id"] = doc.id
+    return data
+
+
+def refresh_bot_in_cache(bot: Dict[str, Any]):
+    """Keep the in-memory cache in sync with a freshly loaded bot."""
+    global bots
+    bots = [b for b in bots if b.get("id") != bot.get("id")]
+    bots.append(bot)
+
+
 def save_bot(bot: Dict[str, Any]):
     bot_id = bot.get("id") or str(uuid.uuid4())
     bot["id"] = bot_id
@@ -96,6 +111,34 @@ class ChatRequest(BaseModel):
     bot_id: Optional[str] = None
 
 
+class WidgetConfigUpdate(BaseModel):
+    accent: Optional[str] = None          # hex color, e.g. "#00d9d9"
+    welcome: Optional[str] = None         # greeting message
+    title: Optional[str] = None           # header title (defaults to bot name)
+    position: Optional[str] = None        # "right" | "left"
+    launcher_icon: Optional[str] = None   # emoji or short text for the toggle button
+
+
+DEFAULT_WIDGET = {
+    "accent": "#00d9d9",
+    "welcome": "Hi! 👋 How can I help you today?",
+    "title": "",
+    "position": "right",
+    "launcher_icon": "💬",
+}
+
+
+def get_widget_config(bot: Dict[str, Any]) -> Dict[str, Any]:
+    cfg = dict(DEFAULT_WIDGET)
+    saved = (bot.get("widget") or {})
+    for k, v in saved.items():
+        if v:
+            cfg[k] = v
+    if not cfg["title"]:
+        cfg["title"] = bot.get("name", "Mentesa Bot")
+    return cfg
+
+
 # -------------------------------------------------
 # Helpers
 # -------------------------------------------------
@@ -118,11 +161,27 @@ def sanitize_public(bot: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def find_bot_by_id(bid: str) -> Optional[Dict[str, Any]]:
-    return next((b for b in bots if b.get("id") == bid), None)
+    cached = next((b for b in bots if b.get("id") == bid), None)
+    if cached:
+        return cached
+    # Cache miss (e.g. bot created on another instance/device) -> read Firestore.
+    bot = _bot_from_doc(db.collection("bots").document(bid).get())
+    if bot:
+        refresh_bot_in_cache(bot)
+    return bot
 
 
 def find_bot_by_api_key(key: str) -> Optional[Dict[str, Any]]:
-    return next((b for b in bots if b.get("api_key") == key), None)
+    cached = next((b for b in bots if b.get("api_key") == key), None)
+    if cached:
+        return cached
+    docs = list(db.collection("bots").where("api_key", "==", key).limit(1).stream())
+    if docs:
+        bot = _bot_from_doc(docs[0])
+        if bot:
+            refresh_bot_in_cache(bot)
+            return bot
+    return None
 
 
 def extract_file_text(filename: str, content: bytes) -> str:
@@ -224,9 +283,20 @@ def list_bots(owner_email: Optional[str] = None,
               x_session_id: Optional[str] = Header(default=None)):
     # Authenticated callers only ever see their own bots. The owner_email
     # query param is ignored for security; ownership comes from the session.
+    # Query Firestore directly so bots created on any device/instance appear.
     session = require_session(x_session_id)
     email = session["email"]
-    return [sanitize_public(b) for b in bots if b.get("owner_email") == email]
+    result = []
+    try:
+        for doc in db.collection("bots").where("owner_email", "==", email).stream():
+            data = doc.to_dict() or {}
+            data["id"] = doc.id
+            refresh_bot_in_cache(data)
+            result.append(sanitize_public(data))
+    except Exception as e:
+        print(f"[bots] Firestore query failed, falling back to cache: {e}")
+        result = [sanitize_public(b) for b in bots if b.get("owner_email") == email]
+    return result
 
 
 @app.get("/bots/{bot_id}", response_model=BotPublic)
@@ -385,6 +455,68 @@ def rotate_bot_api_key(bot_id: str, x_session_id: Optional[str] = Header(default
     b["api_key"] = generate_api_key()
     save_bot(b)
     return {"api_key": b["api_key"], "api_key_masked": mask_key(b["api_key"])}
+
+
+# -------------------------------------------------
+# Routes: Widget customization
+# -------------------------------------------------
+@app.get("/widget/config")
+def public_widget_config(authorization: Optional[str] = Header(default=None),
+                         x_api_key: Optional[str] = Header(default=None),
+                         api_key: Optional[str] = None):
+    """Public endpoint the embed widget calls on load to get its appearance
+    and whether to show Mentesa branding (based on the owner's plan)."""
+    key = None
+    if authorization and authorization.lower().startswith("bearer "):
+        key = authorization.split(" ", 1)[1].strip()
+    elif x_api_key:
+        key = x_api_key.strip()
+    elif api_key:
+        key = api_key.strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="api key required")
+
+    bot = find_bot_by_api_key(key)
+    if not bot:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    branding = True
+    owner_uid = bot.get("owner_uid")
+    if owner_uid:
+        branding = billing.current_plan(owner_uid).get("branding", True)
+
+    cfg = get_widget_config(bot)
+    cfg["branding"] = branding
+    cfg["bot_name"] = bot.get("name", "Mentesa Bot")
+    return cfg
+
+
+@app.get("/bots/{bot_id}/widget")
+def get_bot_widget(bot_id: str, x_session_id: Optional[str] = Header(default=None)):
+    session = require_session(x_session_id)
+    b = find_bot_by_id(bot_id)
+    if not b:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    if b.get("owner_email") != session["email"]:
+        raise HTTPException(403, "Not your bot")
+    return get_widget_config(b)
+
+
+@app.put("/bots/{bot_id}/widget")
+def update_bot_widget(bot_id: str, payload: WidgetConfigUpdate,
+                      x_session_id: Optional[str] = Header(default=None)):
+    session = require_session(x_session_id)
+    b = find_bot_by_id(bot_id)
+    if not b:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    if b.get("owner_email") != session["email"]:
+        raise HTTPException(403, "Not your bot")
+    widget = dict(b.get("widget") or {})
+    for field, value in payload.model_dump(exclude_none=True).items():
+        widget[field] = value
+    b["widget"] = widget
+    save_bot(b)
+    return get_widget_config(b)
 
 
 # -------------------------------------------------

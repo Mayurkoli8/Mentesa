@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api, { API_URL } from '../utils/api';
-import { Copy, RefreshCw, Upload, Check, MessageSquare, ArrowLeft, KeyRound, Globe, FileText } from 'lucide-react';
+import { Copy, RefreshCw, Upload, Check, MessageSquare, ArrowLeft, KeyRound, Globe, FileText, Palette } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { SkeletonCard } from '../components/Skeleton';
 import ErrorState from '../components/ErrorState';
@@ -16,6 +16,8 @@ const ManageBot = () => {
     const [uploading, setUploading] = useState(false);
     const [copied, setCopied] = useState('');
     const [error, setError] = useState('');
+    const [widget, setWidget] = useState(null);
+    const [savingWidget, setSavingWidget] = useState(false);
 
     useEffect(() => {
         load();
@@ -26,16 +28,31 @@ const ManageBot = () => {
         setLoading(true);
         setError('');
         try {
-            const [botRes, keyRes] = await Promise.all([
+            const [botRes, keyRes, widgetRes] = await Promise.all([
                 api.get(`/bots/${botId}`),
                 api.get(`/bots/${botId}/apikey`),
+                api.get(`/bots/${botId}/widget`).catch(() => ({ data: null })),
             ]);
             setBot(botRes.data);
             setApiKey(keyRes.data.api_key);
+            setWidget(widgetRes.data);
         } catch (err) {
             setError(err.response?.data?.detail || 'Failed to load bot');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const saveWidget = async () => {
+        setSavingWidget(true);
+        try {
+            const res = await api.put(`/bots/${botId}/widget`, widget);
+            setWidget(res.data);
+            toast.success('Widget appearance saved');
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Failed to save widget');
+        } finally {
+            setSavingWidget(false);
         }
     };
 
@@ -67,7 +84,7 @@ const ManageBot = () => {
         }
     };
 
-    const embedSnippet = `<script src="${API_URL}/static/embed.js"\n  data-api-key="${apiKey}"\n  data-bot-name="${bot?.name || 'Mentesa Bot'}"\n  data-backend-url="${API_URL}"></script>`;
+    const embedSnippet = `<script src="${API_URL}/static/embed.js"\n  data-api-key="${apiKey}"\n  data-backend-url="${API_URL}"></script>`;
 
     const copy = (text, which) => {
         navigator.clipboard.writeText(text);
@@ -149,6 +166,84 @@ const ManageBot = () => {
                     </button>
                 </div>
             </section>
+
+            {/* Widget appearance */}
+            {widget && (
+                <section className="card p-6 mb-6">
+                    <h2 className="t-section mb-1 flex items-center gap-2">
+                        <Palette size={20} style={{ color: 'var(--accent-cyan)' }} /> Widget Appearance
+                    </h2>
+                    <p className="t-muted mb-5">Customize how the chat widget looks on your website.</p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block t-muted mb-1">Accent color</label>
+                            <div className="flex items-center gap-2">
+                                <input type="color" value={widget.accent || '#00d9d9'}
+                                    onChange={(e) => setWidget({ ...widget, accent: e.target.value })}
+                                    style={{ width: 44, height: 40, padding: 2, background: 'var(--bg-tertiary)', border: '1px solid var(--border-soft)', borderRadius: 'var(--radius-md)' }}
+                                    aria-label="Accent color" />
+                                <input className="input-field" value={widget.accent || ''}
+                                    onChange={(e) => setWidget({ ...widget, accent: e.target.value })} />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block t-muted mb-1">Launcher position</label>
+                            <select className="input-field" value={widget.position || 'right'}
+                                onChange={(e) => setWidget({ ...widget, position: e.target.value })}
+                                aria-label="Launcher position">
+                                <option value="right">Bottom right</option>
+                                <option value="left">Bottom left</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block t-muted mb-1">Header title</label>
+                            <input className="input-field" value={widget.title || ''}
+                                placeholder={bot.name}
+                                onChange={(e) => setWidget({ ...widget, title: e.target.value })} />
+                        </div>
+
+                        <div>
+                            <label className="block t-muted mb-1">Launcher icon</label>
+                            <input className="input-field" value={widget.launcher_icon || ''}
+                                placeholder="💬" maxLength={2}
+                                onChange={(e) => setWidget({ ...widget, launcher_icon: e.target.value })} />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                            <label className="block t-muted mb-1">Welcome message</label>
+                            <input className="input-field" value={widget.welcome || ''}
+                                placeholder="Hi! 👋 How can I help you today?"
+                                onChange={(e) => setWidget({ ...widget, welcome: e.target.value })} />
+                        </div>
+                    </div>
+
+                    {/* Live preview */}
+                    <div className="mt-5 p-4" style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
+                        <div className="t-muted mb-2">Preview</div>
+                        <div style={{ maxWidth: 280, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-soft)' }}>
+                            <div style={{ background: `linear-gradient(135deg, ${widget.accent || '#00d9d9'}, #0a1320)`, color: '#fff', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>
+                                    {(widget.title || bot.name || 'M').charAt(0).toUpperCase()}
+                                </div>
+                                <span style={{ fontWeight: 700, fontSize: 13 }}>{widget.title || bot.name}</span>
+                            </div>
+                            <div style={{ background: '#f6f8fb', padding: 12 }}>
+                                <div style={{ background: '#fff', border: '1px solid #e6eaf0', borderRadius: 12, padding: '8px 12px', fontSize: 13, color: '#1a2332', display: 'inline-block' }}>
+                                    {widget.welcome || 'Hi! 👋 How can I help you today?'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onClick={saveWidget} disabled={savingWidget} className="btn-primary mt-5 inline-flex items-center gap-2">
+                        {savingWidget ? <RefreshCw size={16} className="spin" /> : <Check size={16} />}
+                        {savingWidget ? 'Saving...' : 'Save appearance'}
+                    </button>
+                </section>
+            )}
 
             {/* Knowledge */}
             <section className="card p-6">
