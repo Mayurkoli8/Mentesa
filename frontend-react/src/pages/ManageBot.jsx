@@ -56,6 +56,16 @@ const ManageBot = () => {
         }
     };
 
+    // Black or white text for legibility on a given background color.
+    const contrastText = (hex) => {
+        if (!hex) return '#0a1320';
+        let c = hex.replace('#', '').trim();
+        if (c.length === 3) c = c.split('').map((x) => x + x).join('');
+        if (c.length !== 6) return '#0a1320';
+        const r = parseInt(c.slice(0, 2), 16), g = parseInt(c.slice(2, 4), 16), b = parseInt(c.slice(4, 6), 16);
+        return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? '#0a1320' : '#ffffff';
+    };
+
     const rotateKey = async () => {
         if (!window.confirm('Rotate the API key? The old key will stop working immediately.')) return;
         try {
@@ -223,17 +233,24 @@ const ManageBot = () => {
                     {/* Live preview */}
                     <div className="mt-5 p-4" style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
                         <div className="t-muted mb-2">Preview</div>
-                        <div style={{ maxWidth: 280, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-soft)' }}>
+                        <div style={{ width: '100%', maxWidth: 300, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-soft)' }}>
                             <div style={{ background: `linear-gradient(135deg, ${widget.accent || '#00d9d9'}, #0a1320)`, color: '#fff', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>
                                     {(widget.title || bot.name || 'M').charAt(0).toUpperCase()}
                                 </div>
                                 <span style={{ fontWeight: 700, fontSize: 13 }}>{widget.title || bot.name}</span>
                             </div>
-                            <div style={{ background: '#f6f8fb', padding: 12 }}>
-                                <div style={{ background: '#fff', border: '1px solid #e6eaf0', borderRadius: 12, padding: '8px 12px', fontSize: 13, color: '#1a2332', display: 'inline-block' }}>
+                            <div style={{ background: '#f6f8fb', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                <div style={{ alignSelf: 'flex-start', background: '#fff', border: '1px solid #e6eaf0', borderRadius: 12, borderBottomLeftRadius: 4, padding: '8px 12px', fontSize: 13, color: '#1a2332', maxWidth: '85%' }}>
                                     {widget.welcome || 'Hi! 👋 How can I help you today?'}
                                 </div>
+                                <div style={{ alignSelf: 'flex-end', background: widget.accent || '#00d9d9', color: contrastText(widget.accent), borderRadius: 12, borderBottomRightRadius: 4, padding: '8px 12px', fontSize: 13, maxWidth: '85%' }}>
+                                    This is my message
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, padding: 10, background: '#fff', borderTop: '1px solid #eef1f5' }}>
+                                <div style={{ flex: 1, border: '1px solid #d8dee6', borderRadius: 8, padding: '8px 10px', fontSize: 12, color: '#97a3b2' }}>Type a message...</div>
+                                <div style={{ width: 34, height: 34, borderRadius: 8, background: widget.accent || '#00d9d9', color: contrastText(widget.accent), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>➤</div>
                             </div>
                         </div>
                     </div>

@@ -26,8 +26,23 @@
     branding: true,
   };
 
+  // Pick black or white text for legibility on a given background color.
+  function contrastText(hex) {
+    if (!hex) return "#06121f";
+    let c = hex.replace("#", "").trim();
+    if (c.length === 3) c = c.split("").map((x) => x + x).join("");
+    if (c.length !== 6) return "#06121f";
+    const r = parseInt(c.slice(0, 2), 16);
+    const g = parseInt(c.slice(2, 4), 16);
+    const b = parseInt(c.slice(4, 6), 16);
+    // Relative luminance (sRGB)
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.6 ? "#0a1320" : "#ffffff";
+  }
+
   function injectStyles() {
     const side = cfg.position === "left" ? "left" : "right";
+    const onAccent = contrastText(cfg.accent);
     const style = document.createElement("style");
     style.id = "mts-style";
     style.textContent = `
@@ -59,7 +74,7 @@
       .mts-bubble { padding: 10px 14px; border-radius: 14px; max-width: 78%; font-size: 14px; line-height: 1.45; word-wrap: break-word; animation: mtsIn .2s ease; }
       @keyframes mtsIn { from { opacity: 0; transform: translateY(6px);} to {opacity:1; transform:none;} }
       .mts-user { justify-content: flex-end; }
-      .mts-user .mts-bubble { background: ${cfg.accent}; color: #06121f; border-bottom-right-radius: 4px; }
+      .mts-user .mts-bubble { background: ${cfg.accent}; color: ${onAccent}; border-bottom-right-radius: 4px; }
       .mts-bot .mts-bubble { background: #fff; color: #1a2332; border: 1px solid #e6eaf0; border-bottom-left-radius: 4px; }
       .mts-typing { display: flex; gap: 4px; padding: 12px 14px; }
       .mts-typing span { width: 7px; height: 7px; border-radius: 50%; background: #b8c2cf; animation: mtsBlink 1.2s infinite; }
@@ -72,7 +87,7 @@
       }
       .mts-input input::placeholder { color: #97a3b2; }
       .mts-input input:focus { border-color: ${cfg.accent}; }
-      .mts-send { width: 42px; height: 42px; border:none; border-radius: 10px; cursor: pointer; background: ${cfg.accent}; color: #06121f; font-size: 18px; flex-shrink: 0; transition: transform .15s; }
+      .mts-send { width: 42px; height: 42px; border:none; border-radius: 10px; cursor: pointer; background: ${cfg.accent}; color: ${onAccent}; font-size: 18px; flex-shrink: 0; transition: transform .15s; }
       .mts-send:hover { transform: scale(1.06); }
       .mts-foot { text-align: center; font-size: 11px; padding: 7px; color: #8a96a5; background: #fff; }
       .mts-foot a { color: ${cfg.accent}; text-decoration: none; }

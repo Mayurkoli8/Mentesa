@@ -717,6 +717,12 @@ textarea:focus:not(:focus-visible) {
   width: 100%;
 }
 
+@media (max-width: 640px) {
+  .page { padding: 1.25rem 1rem; }
+  .page-header { margin-bottom: 1.25rem; }
+  .t-page-title { font-size: 1.5rem; }
+}
+
 .page-header {
   display: flex;
   align-items: flex-start;

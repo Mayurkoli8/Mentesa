@@ -281,21 +281,40 @@ def root():
 @app.get("/bots", response_model=List[BotPublic])
 def list_bots(owner_email: Optional[str] = None,
               x_session_id: Optional[str] = Header(default=None)):
-    # Authenticated callers only ever see their own bots. The owner_email
-    # query param is ignored for security; ownership comes from the session.
-    # Query Firestore directly so bots created on any device/instance appear.
+    # Authenticated callers only ever see their own bots. Ownership comes from
+    # the session, never the query param.
+    #
+    # Firestore exact-equality queries are fragile here because older bots have
+    # inconsistent owner_email casing/whitespace and many lack owner_uid. With a
+    # modest collection size we scan once and match by uid OR normalized email,
+    # which reliably finds every bot the user owns across devices. We also
+    # backfill owner_uid so future indexed lookups are accurate.
     session = require_session(x_session_id)
-    email = session["email"]
+    email = (session.get("email") or "").strip().lower()
+    uid = session.get("uid")
     result = []
+
     try:
-        for doc in db.collection("bots").where("owner_email", "==", email).stream():
+        for doc in db.collection("bots").stream():
             data = doc.to_dict() or {}
-            data["id"] = doc.id
-            refresh_bot_in_cache(data)
-            result.append(sanitize_public(data))
+            doc_email = (data.get("owner_email") or "").strip().lower()
+            doc_uid = data.get("owner_uid")
+            if (uid and doc_uid == uid) or (email and doc_email == email):
+                data["id"] = doc.id
+                # Backfill owner_uid for older bots matched by email.
+                if uid and not doc_uid:
+                    try:
+                        db.collection("bots").document(doc.id).update({"owner_uid": uid})
+                        data["owner_uid"] = uid
+                    except Exception:
+                        pass
+                refresh_bot_in_cache(data)
+                result.append(sanitize_public(data))
     except Exception as e:
-        print(f"[bots] Firestore query failed, falling back to cache: {e}")
-        result = [sanitize_public(b) for b in bots if b.get("owner_email") == email]
+        print(f"[bots] Firestore scan failed, falling back to cache: {e}")
+        result = [sanitize_public(b) for b in bots
+                  if (b.get("owner_email") or "").strip().lower() == email
+                  or (uid and b.get("owner_uid") == uid)]
     return result
 
 
