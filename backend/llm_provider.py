@@ -146,8 +146,15 @@ def chat(system: str, user: str, context: Optional[str] = None, history=None) ->
     """Generate a conversational reply. `context` is optional RAG content;
     `history` is a list of prior {role, content} turns for conversation memory."""
     if context:
-        system = f"{system}\n\nUse ONLY the following knowledge to answer. " \
-                 f"If the answer isn't here, say you don't have that information.\n\n{context}"
+        system = (
+            f"{system}\n\n"
+            "Use the following knowledge base as your primary source for factual "
+            "questions about the product, company, or documents. If a factual "
+            "question isn't covered, say you don't have that information. "
+            "Still pay attention to the ongoing conversation and what the user "
+            "has told you, and respond naturally to chit-chat and follow-ups.\n\n"
+            f"Knowledge base:\n{context}"
+        )
     return _get_provider().chat(system, user, history=history)
 
 
