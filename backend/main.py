@@ -189,6 +189,19 @@ def find_bot_by_id(bid: str) -> Optional[Dict[str, Any]]:
     return bot
 
 
+def owns_bot(bot: Dict[str, Any], session: Dict[str, Any]) -> bool:
+    """Ownership check tolerant of email casing/whitespace and uid."""
+    if not bot:
+        return False
+    sess_email = (session.get("email") or "").strip().lower()
+    sess_uid = session.get("uid")
+    bot_email = (bot.get("owner_email") or "").strip().lower()
+    bot_uid = bot.get("owner_uid")
+    if sess_uid and bot_uid and sess_uid == bot_uid:
+        return True
+    return bool(sess_email) and bot_email == sess_email
+
+
 def find_bot_by_api_key(key: str) -> Optional[Dict[str, Any]]:
     cached = next((b for b in bots if b.get("api_key") == key), None)
     if cached:
@@ -347,7 +360,7 @@ def get_bot(bot_id: str, x_session_id: Optional[str] = Header(default=None)):
     b = find_bot_by_id(bot_id)
     if not b:
         raise HTTPException(status_code=404, detail="Bot not found")
-    if b.get("owner_email") != session["email"]:
+    if not owns_bot(b, session):
         raise HTTPException(status_code=403, detail="Not your bot")
     return sanitize_public(b)
 
@@ -359,7 +372,7 @@ def update_bot(bot_id: str, payload: BotUpdate,
     b = find_bot_by_id(bot_id)
     if not b:
         raise HTTPException(status_code=404, detail="Bot not found")
-    if b.get("owner_email") != session["email"]:
+    if not owns_bot(b, session):
         raise HTTPException(status_code=403, detail="Not your bot")
 
     updates = payload.model_dump(exclude_none=True)
@@ -463,7 +476,7 @@ def delete_bot(bot_id: str, x_session_id: Optional[str] = Header(default=None)):
     b = find_bot_by_id(bot_id)
     if not b:
         raise HTTPException(status_code=404, detail="Bot not found")
-    if b.get("owner_email") != session["email"]:
+    if not owns_bot(b, session):
         raise HTTPException(status_code=403, detail="Not your bot")
     global bots
     bots = [x for x in bots if x.get("id") != bot_id]
@@ -478,7 +491,7 @@ async def upload_file(bot_id: str, file: UploadFile = File(...),
     bot = find_bot_by_id(bot_id)
     if not bot:
         raise HTTPException(404, "Bot not found")
-    if bot.get("owner_email") != session["email"]:
+    if not owns_bot(bot, session):
         raise HTTPException(403, "Not your bot")
 
     content = await file.read()
@@ -502,7 +515,7 @@ def delete_bot_file(bot_id: str, file_name: str,
     bot = find_bot_by_id(bot_id)
     if not bot:
         raise HTTPException(404, "Bot not found")
-    if bot.get("owner_email") != session["email"]:
+    if not owns_bot(bot, session):
         raise HTTPException(403, "Not your bot")
     before = len(bot.get("file_data", []) or [])
     bot["file_data"] = [f for f in (bot.get("file_data") or []) if f.get("name") != file_name]
@@ -520,7 +533,7 @@ def add_bot_url(bot_id: str, payload: UrlAdd,
     bot = find_bot_by_id(bot_id)
     if not bot:
         raise HTTPException(404, "Bot not found")
-    if bot.get("owner_email") != session["email"]:
+    if not owns_bot(bot, session):
         raise HTTPException(403, "Not your bot")
 
     url = (payload.url or "").strip()
@@ -556,7 +569,7 @@ def delete_bot_url(bot_id: str, url: str,
     bot = find_bot_by_id(bot_id)
     if not bot:
         raise HTTPException(404, "Bot not found")
-    if bot.get("owner_email") != session["email"]:
+    if not owns_bot(bot, session):
         raise HTTPException(403, "Not your bot")
 
     # Remove from scraped_texts map and config.urls.
@@ -586,7 +599,7 @@ def get_bot_api_key(bot_id: str, x_session_id: Optional[str] = Header(default=No
     b = find_bot_by_id(bot_id)
     if not b:
         raise HTTPException(status_code=404, detail="Bot not found")
-    if b.get("owner_email") != session["email"]:
+    if not owns_bot(b, session):
         raise HTTPException(403, "Not your bot")
     key = b.get("api_key")
     if not key:
@@ -602,7 +615,7 @@ def rotate_bot_api_key(bot_id: str, x_session_id: Optional[str] = Header(default
     b = find_bot_by_id(bot_id)
     if not b:
         raise HTTPException(status_code=404, detail="Bot not found")
-    if b.get("owner_email") != session["email"]:
+    if not owns_bot(b, session):
         raise HTTPException(403, "Not your bot")
     b["api_key"] = generate_api_key()
     save_bot(b)
@@ -649,7 +662,7 @@ def get_bot_widget(bot_id: str, x_session_id: Optional[str] = Header(default=Non
     b = find_bot_by_id(bot_id)
     if not b:
         raise HTTPException(status_code=404, detail="Bot not found")
-    if b.get("owner_email") != session["email"]:
+    if not owns_bot(b, session):
         raise HTTPException(403, "Not your bot")
     return get_widget_config(b)
 
@@ -661,7 +674,7 @@ def update_bot_widget(bot_id: str, payload: WidgetConfigUpdate,
     b = find_bot_by_id(bot_id)
     if not b:
         raise HTTPException(status_code=404, detail="Bot not found")
-    if b.get("owner_email") != session["email"]:
+    if not owns_bot(b, session):
         raise HTTPException(403, "Not your bot")
     widget = dict(b.get("widget") or {})
     for field, value in payload.model_dump(exclude_none=True).items():
@@ -860,7 +873,7 @@ def get_chat_history(bot_id: str, x_session_id: Optional[str] = Header(default=N
     b = find_bot_by_id(bot_id)
     if not b:
         raise HTTPException(status_code=404, detail="Bot not found")
-    if b.get("owner_email") != session["email"]:
+    if not owns_bot(b, session):
         raise HTTPException(status_code=403, detail="Not your bot")
     doc = db.collection("bot_chats").document(bot_id).get()
     if doc.exists:
@@ -875,7 +888,7 @@ def save_chat_history(bot_id: str, payload: Dict[str, Any],
     b = find_bot_by_id(bot_id)
     if not b:
         raise HTTPException(status_code=404, detail="Bot not found")
-    if b.get("owner_email") != session["email"]:
+    if not owns_bot(b, session):
         raise HTTPException(status_code=403, detail="Not your bot")
     history = payload.get("history", [])
     db.collection("bot_chats").document(bot_id).set({"history": history})
