@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api, { API_URL } from '../utils/api';
-import { Copy, RefreshCw, Upload, Check, MessageSquare, ArrowLeft, KeyRound, Globe, FileText, Palette, Pencil, Calendar } from 'lucide-react';
+import { Copy, RefreshCw, Upload, Check, MessageSquare, ArrowLeft, KeyRound, Globe, FileText, Palette, Pencil, Calendar, Trash2, Plus } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { SkeletonCard } from '../components/Skeleton';
 import ErrorState from '../components/ErrorState';
@@ -116,6 +116,47 @@ const ManageBot = () => {
             toast.error(err.response?.data?.detail || 'Upload failed');
         } finally {
             setUploading(false);
+            e.target.value = '';
+        }
+    };
+
+    const [newUrl, setNewUrl] = useState('');
+    const [addingUrl, setAddingUrl] = useState(false);
+
+    const addUrl = async () => {
+        if (!newUrl.trim()) return;
+        setAddingUrl(true);
+        try {
+            const res = await api.post(`/bots/${botId}/urls`, { url: newUrl.trim() });
+            setBot(res.data);
+            setNewUrl('');
+            toast.success('Website added to knowledge base');
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Failed to add URL');
+        } finally {
+            setAddingUrl(false);
+        }
+    };
+
+    const deleteUrl = async (url) => {
+        if (!window.confirm('Remove this website from the knowledge base?')) return;
+        try {
+            const res = await api.delete(`/bots/${botId}/urls`, { params: { url } });
+            setBot(res.data);
+            toast.success('Website removed');
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Failed to remove URL');
+        }
+    };
+
+    const deleteFile = async (name) => {
+        if (!window.confirm(`Remove "${name}" from the knowledge base?`)) return;
+        try {
+            const res = await api.delete(`/bots/${botId}/files/${encodeURIComponent(name)}`);
+            setBot(res.data);
+            toast.success('File removed');
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Failed to remove file');
         }
     };
 
@@ -320,23 +361,50 @@ const ManageBot = () => {
             {/* Knowledge */}
             <section className="card p-6">
                 <h2 className="t-section mb-4">Knowledge Base</h2>
-                <div className="space-y-2 mb-4">
+                <div className="space-y-2 mb-5">
                     {(bot.config?.urls || []).map((u, i) => (
                         <div key={`u-${i}`} className="flex items-center gap-2 t-body px-3 py-2"
                             style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
-                            <Globe size={15} style={{ color: 'var(--accent-cyan)' }} /> {u}
+                            <Globe size={15} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
+                            <span className="truncate flex-1">{u}</span>
+                            <button onClick={() => deleteUrl(u)} className="icon-btn icon-btn--danger"
+                                aria-label={`Remove ${u}`} title="Remove">
+                                <Trash2 size={15} />
+                            </button>
                         </div>
                     ))}
                     {(bot.file_data || []).map((f, i) => (
                         <div key={`f-${i}`} className="flex items-center gap-2 t-body px-3 py-2"
                             style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
-                            <FileText size={15} style={{ color: 'var(--accent-cyan)' }} /> {f.name}
+                            <FileText size={15} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
+                            <span className="truncate flex-1">{f.name}</span>
+                            <button onClick={() => deleteFile(f.name)} className="icon-btn icon-btn--danger"
+                                aria-label={`Remove ${f.name}`} title="Remove">
+                                <Trash2 size={15} />
+                            </button>
                         </div>
                     ))}
                     {!(bot.config?.urls || []).length && !(bot.file_data || []).length && (
-                        <div className="t-muted">No knowledge sources yet.</div>
+                        <div className="t-muted">No knowledge sources yet. Add a website or upload a file below.</div>
                     )}
                 </div>
+
+                {/* Add website URL */}
+                <label className="block t-muted mb-1">Add a website</label>
+                <div className="flex gap-2 mb-4">
+                    <div className="relative flex-1">
+                        <Globe size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+                        <input className="input-field pl-9" placeholder="https://yoursite.com"
+                            value={newUrl} onChange={(e) => setNewUrl(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') addUrl(); }} />
+                    </div>
+                    <button onClick={addUrl} disabled={addingUrl || !newUrl.trim()} className="btn-secondary flex items-center gap-2">
+                        {addingUrl ? <RefreshCw size={16} className="spin" /> : <Plus size={16} />}
+                        {addingUrl ? 'Scraping...' : 'Add'}
+                    </button>
+                </div>
+
+                {/* Add file */}
                 <label className="btn-secondary inline-flex items-center gap-2 cursor-pointer">
                     {uploading ? <RefreshCw size={18} className="spin" /> : <Upload size={18} />}
                     {uploading ? 'Uploading...' : 'Add file (PDF, DOCX, TXT)'}

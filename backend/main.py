@@ -104,6 +104,8 @@ class BotPublic(BaseModel):
     personality: Optional[str] = ""
     config: Dict[str, Any] = Field(default_factory=dict)
     created_at: Optional[str] = None
+    file_data: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    widget: Optional[Dict[str, Any]] = None
 
 
 class ChatRequest(BaseModel):
@@ -116,6 +118,10 @@ class ChatRequest(BaseModel):
 class BotUpdate(BaseModel):
     name: Optional[str] = None
     personality: Optional[str] = None
+
+
+class UrlAdd(BaseModel):
+    url: str
 
 
 class WidgetConfigUpdate(BaseModel):
@@ -163,7 +169,12 @@ def mask_key(k: Optional[str]) -> str:
 def sanitize_public(bot: Dict[str, Any]) -> Dict[str, Any]:
     b = dict(bot)
     b.pop("api_key", None)
-    b.pop("chunks", None)  # don't ship embeddings to the client
+    b.pop("chunks", None)        # don't ship embeddings to the client
+    b.pop("scraped_text", None)  # heavy raw text, not needed by UI
+    b.pop("scraped_texts", None)
+    # Trim file_data to metadata only (UI shows names, not full text).
+    if b.get("file_data"):
+        b["file_data"] = [{"id": f.get("id"), "name": f.get("name")} for f in b["file_data"]]
     return b
 
 
@@ -205,9 +216,14 @@ def extract_file_text(filename: str, content: bytes) -> str:
 
 
 def rebuild_bot_index(bot: Dict[str, Any]) -> None:
-    """Recompute RAG chunks for a bot from its scraped text + files."""
+    """Recompute RAG chunks for a bot from its scraped URLs + uploaded files."""
     sources: List[Dict[str, str]] = []
-    if bot.get("scraped_text"):
+    # Per-URL scraped text (new model).
+    for url, text in (bot.get("scraped_texts") or {}).items():
+        if text and text != "-":
+            sources.append({"name": url, "text": text})
+    # Legacy single scraped_text blob (older bots) — include if no map exists.
+    if not bot.get("scraped_texts") and bot.get("scraped_text"):
         sources.append({"name": "website", "text": bot["scraped_text"]})
     for f in bot.get("file_data", []) or []:
         if f.get("text") and f["text"] != "-":
@@ -411,6 +427,11 @@ def create_bot(bot: BotCreate, x_session_id: Optional[str] = Header(default=None
             urls_list.append(u)
     config_data["urls"] = urls_list
 
+    # Store scraped text per URL so it can be managed/deleted individually.
+    scraped_texts = {}
+    if frontend_urls and site_text:
+        scraped_texts[frontend_urls[0]] = site_text
+
     new_bot = {
         "id": str(uuid.uuid4()),
         "name": cfg.get("name", bot.name or "Unnamed Bot"),
@@ -419,6 +440,7 @@ def create_bot(bot: BotCreate, x_session_id: Optional[str] = Header(default=None
         "created_at": datetime.now().isoformat(),
         "api_key": generate_api_key(),
         "scraped_text": site_text,
+        "scraped_texts": scraped_texts,
         "file_data": file_data,
         "owner_email": owner_email,
         "owner_uid": uid,
@@ -468,8 +490,91 @@ async def upload_file(bot_id: str, file: UploadFile = File(...),
     bot["file_data"].append(entry)
 
     rebuild_bot_index(bot)
+    refresh_bot_in_cache(bot)
     save_bot(bot)
-    return {"message": f"{file.filename} uploaded successfully", "text_length": len(text)}
+    return sanitize_public(bot)
+
+
+@app.delete("/bots/{bot_id}/files/{file_name}")
+def delete_bot_file(bot_id: str, file_name: str,
+                    x_session_id: Optional[str] = Header(default=None)):
+    session = require_session(x_session_id)
+    bot = find_bot_by_id(bot_id)
+    if not bot:
+        raise HTTPException(404, "Bot not found")
+    if bot.get("owner_email") != session["email"]:
+        raise HTTPException(403, "Not your bot")
+    before = len(bot.get("file_data", []) or [])
+    bot["file_data"] = [f for f in (bot.get("file_data") or []) if f.get("name") != file_name]
+    if len(bot["file_data"]) == before:
+        raise HTTPException(404, "File not found")
+    rebuild_bot_index(bot)
+    save_bot(bot)
+    return sanitize_public(bot)
+
+
+@app.post("/bots/{bot_id}/urls")
+def add_bot_url(bot_id: str, payload: UrlAdd,
+                x_session_id: Optional[str] = Header(default=None)):
+    session = require_session(x_session_id)
+    bot = find_bot_by_id(bot_id)
+    if not bot:
+        raise HTTPException(404, "Bot not found")
+    if bot.get("owner_email") != session["email"]:
+        raise HTTPException(403, "Not your bot")
+
+    url = (payload.url or "").strip()
+    if not url:
+        raise HTTPException(400, "url required")
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+
+    try:
+        text = scrape_website(url)
+    except Exception as e:
+        raise HTTPException(400, f"Failed to scrape site: {e}")
+
+    bot.setdefault("scraped_texts", {})
+    bot["scraped_texts"][url] = text or "-"
+
+    cfg = bot.get("config") or {}
+    urls = cfg.get("urls", [])
+    if url not in urls:
+        urls.append(url)
+    cfg["urls"] = urls
+    bot["config"] = cfg
+
+    rebuild_bot_index(bot)
+    save_bot(bot)
+    return sanitize_public(bot)
+
+
+@app.delete("/bots/{bot_id}/urls")
+def delete_bot_url(bot_id: str, url: str,
+                   x_session_id: Optional[str] = Header(default=None)):
+    session = require_session(x_session_id)
+    bot = find_bot_by_id(bot_id)
+    if not bot:
+        raise HTTPException(404, "Bot not found")
+    if bot.get("owner_email") != session["email"]:
+        raise HTTPException(403, "Not your bot")
+
+    # Remove from scraped_texts map and config.urls.
+    st = bot.get("scraped_texts") or {}
+    st.pop(url, None)
+    bot["scraped_texts"] = st
+
+    cfg = bot.get("config") or {}
+    cfg["urls"] = [u for u in cfg.get("urls", []) if u != url]
+    bot["config"] = cfg
+
+    # If this was the legacy single-URL bot, clear the legacy blob too.
+    if not st and bot.get("scraped_text"):
+        bot["scraped_text"] = ""
+
+    rebuild_bot_index(bot)
+    save_bot(bot)
+    return sanitize_public(bot)
 
 
 # -------------------------------------------------
