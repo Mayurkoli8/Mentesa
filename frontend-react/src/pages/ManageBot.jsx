@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api, { API_URL } from '../utils/api';
-import { Copy, RefreshCw, Upload, Check, MessageSquare, ArrowLeft, KeyRound, Globe, FileText, Palette, Pencil, Calendar, Trash2, Plus } from 'lucide-react';
+import { Copy, RefreshCw, Upload, Check, MessageSquare, ArrowLeft, KeyRound, Globe, FileText, Palette, Pencil, Calendar, Trash2, Plus, Send } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { SkeletonCard } from '../components/Skeleton';
 import ErrorState from '../components/ErrorState';
@@ -21,6 +21,10 @@ const ManageBot = () => {
     const [editName, setEditName] = useState('');
     const [editPersonality, setEditPersonality] = useState('');
     const [savingIdentity, setSavingIdentity] = useState(false);
+    const [telegramToken, setTelegramToken] = useState('');
+    const [telegram, setTelegram] = useState(null);
+    const [connectingTelegram, setConnectingTelegram] = useState(false);
+    const [disconnectingTelegram, setDisconnectingTelegram] = useState(false);
 
     useEffect(() => {
         load();
@@ -31,14 +35,16 @@ const ManageBot = () => {
         setLoading(true);
         setError('');
         try {
-            const [botRes, keyRes, widgetRes] = await Promise.all([
+            const [botRes, keyRes, widgetRes, telegramRes] = await Promise.all([
                 api.get(`/bots/${botId}`),
                 api.get(`/bots/${botId}/apikey`),
                 api.get(`/bots/${botId}/widget`).catch(() => ({ data: null })),
+                api.get(`/bots/${botId}/telegram`).catch(() => ({ data: { connected: false } })),
             ]);
             setBot(botRes.data);
             setApiKey(keyRes.data.api_key);
             setWidget(widgetRes.data);
+            setTelegram(telegramRes.data);
             setEditName(botRes.data.name || '');
             setEditPersonality(botRes.data.personality || '');
         } catch (err) {
@@ -99,6 +105,38 @@ const ManageBot = () => {
             toast.success('API key rotated');
         } catch (err) {
             toast.error(err.response?.data?.detail || 'Failed to rotate key');
+        }
+    };
+
+    const connectTelegram = async () => {
+        if (!telegramToken.trim()) {
+            toast.error('Enter your Telegram bot token');
+            return;
+        }
+        setConnectingTelegram(true);
+        try {
+            const res = await api.post(`/bots/${botId}/telegram/connect`, { token: telegramToken.trim() });
+            setTelegram(res.data);
+            setTelegramToken('');
+            toast.success(`Connected ${res.data.username ? '@' + res.data.username : 'Telegram bot'}`);
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Failed to connect Telegram bot');
+        } finally {
+            setConnectingTelegram(false);
+        }
+    };
+
+    const disconnectTelegram = async () => {
+        if (!window.confirm('Disconnect this Telegram bot? It will stop replying through Telegram.')) return;
+        setDisconnectingTelegram(true);
+        try {
+            const res = await api.delete(`/bots/${botId}/telegram`);
+            setTelegram(res.data);
+            toast.success('Telegram bot disconnected');
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Failed to disconnect Telegram bot');
+        } finally {
+            setDisconnectingTelegram(false);
         }
     };
 
@@ -257,6 +295,63 @@ const ManageBot = () => {
                     </button>
                 </div>
                 <p className="t-muted mt-3">Keep this secret. Anyone with this key can use your bot's message quota.</p>
+            </section>
+
+            {/* Telegram integration */}
+            <section className="card p-6 mb-6">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                        <h2 className="t-section mb-1 flex items-center gap-2">
+                            <Send size={20} style={{ color: 'var(--accent-cyan)' }} /> Telegram
+                        </h2>
+                        <p className="t-muted">Connect this Mentesa bot to Telegram using your BotFather token.</p>
+                    </div>
+                    {telegram?.connected && (
+                        <span className="flex items-center gap-2 t-body" style={{ color: 'var(--status-active)' }}>
+                            <span className="status-dot status-active" /> Connected
+                        </span>
+                    )}
+                </div>
+
+                {telegram?.connected ? (
+                    <div className="mt-5">
+                        <div className="flex items-center justify-between gap-4 p-4" style={{ background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
+                            <div className="min-w-0">
+                                <div className="t-body font-semibold truncate">
+                                    {telegram.first_name || 'Telegram Bot'}
+                                </div>
+                                {telegram.username && (
+                                    <div className="t-muted mt-1">@{telegram.username}</div>
+                                )}
+                            </div>
+                            <button onClick={disconnectTelegram} disabled={disconnectingTelegram} className="btn-secondary flex items-center gap-2">
+                                {disconnectingTelegram ? <RefreshCw size={16} className="spin" /> : <Trash2 size={16} />}
+                                {disconnectingTelegram ? 'Disconnecting...' : 'Disconnect'}
+                            </button>
+                        </div>
+                        <p className="t-muted mt-3">Messages sent to this Telegram bot are handled by this Mentesa bot's knowledge base and personality.</p>
+                    </div>
+                ) : (
+                    <div className="mt-5">
+                        <label className="block t-muted mb-1">Telegram bot token</label>
+                        <div className="flex gap-2">
+                            <input
+                                type="password"
+                                className="input-field flex-1"
+                                value={telegramToken}
+                                onChange={(e) => setTelegramToken(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') connectTelegram(); }}
+                                placeholder="123456789:AA..."
+                                autoComplete="off"
+                            />
+                            <button onClick={connectTelegram} disabled={connectingTelegram || !telegramToken.trim()} className="btn-primary flex items-center gap-2">
+                                {connectingTelegram ? <RefreshCw size={16} className="spin" /> : <Send size={16} />}
+                                {connectingTelegram ? 'Connecting...' : 'Connect'}
+                            </button>
+                        </div>
+                        <p className="t-muted mt-3">Create a bot with BotFather, paste its token here, and click Connect. The token is stored only on the backend.</p>
+                    </div>
+                )}
             </section>
 
             {/* Embed */}

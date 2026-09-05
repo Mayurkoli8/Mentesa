@@ -132,6 +132,10 @@ class WidgetConfigUpdate(BaseModel):
     launcher_icon: Optional[str] = None   # emoji or short text for the toggle button
 
 
+class TelegramConnectRequest(BaseModel):
+    token: str
+
+
 DEFAULT_WIDGET = {
     "accent": "#00d9d9",
     "welcome": "Hi! 👋 How can I help you today?",
@@ -478,6 +482,14 @@ def delete_bot(bot_id: str, x_session_id: Optional[str] = Header(default=None)):
         raise HTTPException(status_code=404, detail="Bot not found")
     if not owns_bot(b, session):
         raise HTTPException(status_code=403, detail="Not your bot")
+    connection = b.get("telegram") or {}
+    telegram_token = connection.get("token")
+    if telegram_token:
+        try:
+            telegram_api(telegram_token, "deleteWebhook", {"drop_pending_updates": True})
+        except Exception as exc:
+            print(f"[telegram] failed to remove webhook during bot deletion: {exc}")
+
     global bots
     bots = [x for x in bots if x.get("id") != bot_id]
     db.collection("bots").document(bot_id).delete()
@@ -620,6 +632,243 @@ def rotate_bot_api_key(bot_id: str, x_session_id: Optional[str] = Header(default
     b["api_key"] = generate_api_key()
     save_bot(b)
     return {"api_key": b["api_key"], "api_key_masked": mask_key(b["api_key"])}
+
+
+# -------------------------------------------------
+# Telegram integration helpers
+# -------------------------------------------------
+TELEGRAM_API_BASE = "https://api.telegram.org/bot{}"
+
+
+def telegram_api(token: str, method: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Call the Telegram Bot API and return its JSON result or raise a useful error."""
+    if not token:
+        raise ValueError("Telegram bot token is required")
+    url = f"{TELEGRAM_API_BASE.format(token)}/{method}"
+    try:
+        response = _requests.post(url, json=payload or {}, timeout=15)
+        data = response.json()
+    except Exception as exc:
+        raise ValueError(f"Could not reach Telegram: {exc}") from exc
+
+    if response.status_code >= 400 or not data.get("ok"):
+        raise ValueError(data.get("description") or f"Telegram API error ({response.status_code})")
+    return data.get("result") or {}
+
+
+def telegram_webhook_url(request: Request, bot_id: str, webhook_secret: str) -> str:
+    """Build a public HTTPS webhook URL using the current API host."""
+    forwarded_host = request.headers.get("x-forwarded-host")
+    host = forwarded_host or request.headers.get("host") or request.url.netloc
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    scheme = (forwarded_proto or request.url.scheme).split(",")[0].strip()
+    if scheme != "https":
+        raise ValueError("Telegram webhooks require the Mentesa backend to be publicly reachable over HTTPS")
+    return f"https://{host}/telegram/webhook/{bot_id}/{webhook_secret}"
+
+
+def telegram_status(bot: Dict[str, Any]) -> Dict[str, Any]:
+    connection = bot.get("telegram") or {}
+    token = connection.get("token")
+    return {
+        "connected": bool(token and connection.get("webhook_secret")),
+        "username": connection.get("username"),
+        "first_name": connection.get("first_name"),
+        "telegram_bot_id": connection.get("telegram_bot_id"),
+        "connected_at": connection.get("connected_at"),
+    }
+
+
+def send_telegram_message(token: str, chat_id: Any, text: str) -> None:
+    """Send Telegram text, splitting it to Telegram's current 4096-char limit."""
+    text = (text or "").strip() or "I couldn't generate a reply."
+    for start in range(0, len(text), 4096):
+        telegram_api(token, "sendMessage", {
+            "chat_id": chat_id,
+            "text": text[start:start + 4096],
+        })
+
+
+def generate_bot_reply(bot: Dict[str, Any], message: str, history: Optional[List[Dict[str, str]]] = None) -> str:
+    """Generate a reply using the same RAG + LLM pipeline as the normal chat endpoint."""
+    owner_uid = bot.get("owner_uid")
+    if owner_uid:
+        quota = billing.can_send_message(owner_uid)
+        if not quota["allowed"]:
+            raise ValueError(
+                f"Monthly message limit reached ({quota['limit']}). Upgrade the plan to continue."
+            )
+
+    chunks = bot.get("chunks") or []
+    if not chunks and (bot.get("scraped_text") or bot.get("file_data")):
+        rebuild_bot_index(bot)
+        chunks = bot.get("chunks") or []
+        save_bot(bot)
+    context = rag.retrieve(message, chunks) if chunks else bot.get("scraped_text", "")
+
+    system = (
+        f"You are '{bot.get('name', 'Bot')}'. "
+        f"Personality: {bot.get('personality', '')}. "
+        f"Be helpful and concise. Use the conversation so far to stay in context."
+    )
+    safe_history = [h for h in (history or []) if isinstance(h, dict) and h.get("content")][-12:]
+    reply = llm_provider.chat(system, message, context=context, history=safe_history)
+    if owner_uid:
+        billing.increment_usage(owner_uid, 1)
+    return reply or "I couldn't generate a reply."
+
+
+# -------------------------------------------------
+# Routes: Telegram integration
+# -------------------------------------------------
+@app.get("/bots/{bot_id}/telegram")
+def get_telegram_connection(bot_id: str, x_session_id: Optional[str] = Header(default=None)):
+    session = require_session(x_session_id)
+    bot = find_bot_by_id(bot_id)
+    if not bot:
+        raise HTTPException(404, "Bot not found")
+    if not owns_bot(bot, session):
+        raise HTTPException(403, "Not your bot")
+    return telegram_status(bot)
+
+
+@app.post("/bots/{bot_id}/telegram/connect")
+def connect_telegram(bot_id: str, payload: TelegramConnectRequest, request: Request,
+                     x_session_id: Optional[str] = Header(default=None)):
+    session = require_session(x_session_id)
+    bot = find_bot_by_id(bot_id)
+    if not bot:
+        raise HTTPException(404, "Bot not found")
+    if not owns_bot(bot, session):
+        raise HTTPException(403, "Not your bot")
+
+    token = (payload.token or "").strip()
+    if not token:
+        raise HTTPException(400, "Telegram bot token is required")
+
+    # Validate the token before changing the existing connection.
+    try:
+        me = telegram_api(token, "getMe")
+        webhook_secret = secrets.token_urlsafe(32)
+        webhook_url = telegram_webhook_url(request, bot_id, webhook_secret)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    # Replace an older Telegram connection cleanly, if one exists.
+    old = bot.get("telegram") or {}
+    old_token = old.get("token")
+    if old_token and old_token != token:
+        try:
+            telegram_api(old_token, "deleteWebhook", {"drop_pending_updates": True})
+        except Exception as exc:
+            print(f"[telegram] failed to remove old webhook: {exc}")
+
+    try:
+        telegram_api(token, "setWebhook", {
+            "url": webhook_url,
+            "secret_token": webhook_secret,
+            "allowed_updates": ["message"],
+            "drop_pending_updates": True,
+        })
+    except ValueError as exc:
+        raise HTTPException(400, f"Could not connect Telegram bot: {exc}")
+
+    bot["telegram"] = {
+        "token": token,  # server-side secret; never returned to the frontend
+        "telegram_bot_id": me.get("id"),
+        "username": me.get("username"),
+        "first_name": me.get("first_name"),
+        "webhook_secret": webhook_secret,
+        "connected_at": datetime.now().isoformat(),
+    }
+    save_bot(bot)
+    refresh_bot_in_cache(bot)
+    return telegram_status(bot)
+
+
+@app.delete("/bots/{bot_id}/telegram")
+def disconnect_telegram(bot_id: str, x_session_id: Optional[str] = Header(default=None)):
+    session = require_session(x_session_id)
+    bot = find_bot_by_id(bot_id)
+    if not bot:
+        raise HTTPException(404, "Bot not found")
+    if not owns_bot(bot, session):
+        raise HTTPException(403, "Not your bot")
+
+    connection = bot.get("telegram") or {}
+    token = connection.get("token")
+    if token:
+        try:
+            telegram_api(token, "deleteWebhook", {"drop_pending_updates": True})
+        except Exception as exc:
+            print(f"[telegram] failed to remove webhook during disconnect: {exc}")
+
+    bot.pop("telegram", None)
+    save_bot(bot)
+    refresh_bot_in_cache(bot)
+    return {"connected": False}
+
+
+@app.post("/telegram/webhook/{bot_id}/{webhook_secret}")
+async def telegram_webhook(bot_id: str, webhook_secret: str, request: Request,
+                     x_telegram_bot_api_secret_token: Optional[str] = Header(default=None)):
+    """Receive Telegram updates and run them through the selected Mentesa bot."""
+    bot = find_bot_by_id(bot_id)
+    if not bot:
+        raise HTTPException(404, "Bot not found")
+
+    connection = bot.get("telegram") or {}
+    if not connection.get("token") or connection.get("webhook_secret") != webhook_secret:
+        raise HTTPException(404, "Webhook not found")
+
+    expected_secret = connection.get("webhook_secret")
+    if not x_telegram_bot_api_secret_token or x_telegram_bot_api_secret_token != expected_secret:
+        raise HTTPException(403, "Invalid Telegram webhook secret")
+
+    try:
+        update = await request.json()
+    except Exception:
+        return JSONResponse({"ok": True})
+
+    message = update.get("message") or {}
+    text = message.get("text")
+    chat = message.get("chat") or {}
+    chat_id = chat.get("id")
+    if not text or chat_id is None:
+        return JSONResponse({"ok": True})
+
+    # Keep Telegram conversation memory separate from the website widget history.
+    convo_doc_id = f"{bot_id}_{chat_id}"
+    history = []
+    try:
+        doc = db.collection("telegram_chats").document(convo_doc_id).get()
+        if doc.exists:
+            history = (doc.to_dict() or {}).get("history", [])
+        history = [h for h in history if isinstance(h, dict) and h.get("content")][-12:]
+
+        rl_key = f"telegram:{bot_id}:{chat_id}"
+        if not ratelimit.check(rl_key, max_requests=20, window_seconds=60):
+            send_telegram_message(connection["token"], chat_id, "You're sending messages too quickly. Please try again in a moment.")
+            return JSONResponse({"ok": True})
+
+        reply = generate_bot_reply(bot, text, history=history)
+        updated = history + [
+            {"role": "user", "content": text},
+            {"role": "bot", "content": reply},
+        ]
+        db.collection("telegram_chats").document(convo_doc_id).set({
+            "history": updated[-40:],
+            "updated_at": datetime.now().isoformat(),
+        })
+        send_telegram_message(connection["token"], chat_id, reply)
+    except Exception as exc:
+        print(f"[telegram] update processing failed for {bot_id}: {exc}")
+        try:
+            send_telegram_message(connection["token"], chat_id, "Sorry, I couldn't process that message right now. Please try again.")
+        except Exception:
+            pass
+
+    return JSONResponse({"ok": True})
 
 
 # -------------------------------------------------
